@@ -18,6 +18,7 @@
 - Écriture fichier **atomique** (temp + rename). Un fichier corrompu ne doit **jamais** être écrasé automatiquement.
 - Dates de rappel stockées au format **`AAAA-MM-JJ`**. Raccourcis acceptés en v1 : `aujourd'hui`, `demain` (les noms de jours sont hors périmètre v1).
 - Tests : self-checks sur la logique non triviale uniquement (dates, tri d'affichage, opérations items, persistance). La couche Ink n'est pas testée automatiquement.
+- **Stack & gates** : code en `src/` (pas `source/`), exécuté par `tsx` (pas de build). `npm test` = `prettier --check .` **puis** `xo` **puis** `node --import tsx --test test/*.test.ts` — les trois doivent passer à chaque task. Ink 5 + `ink-text-input`.
 - **Une seule instance** : `brain` n'est pas prévu pour tourner dans deux splits simultanés (last-writer-wins sur le fichier). Pas de lock — juste documenté dans le README.
 - **Affichage dynamique** : la section « dus » est triée par date de rappel croissante (plus en retard en tête) ; la vue scrolle si elle dépasse la hauteur du terminal (barre de saisie toujours collée en bas). `today` est recalculé à chaque render (donc à chaque frappe) — pas de timer de rafraîchissement (le panneau est touché en continu).
 - Hors périmètre v1 : notif macOS, commande quick-add séparée, projets/tags/priorités, sync, Slack.
@@ -67,15 +68,19 @@ export type Item = {
 
 - [ ] **Step 1: Créer `package.json`**
 
+> Décision d'exécution : le repo contient déjà un scaffold `create-ink-app` (Ink 4, `source/`, `ava`/`xo`/`prettier`, build `tsc`). On adopte la stack du plan (tsx + `node:test` + `src/` + Ink 5) **mais on conserve `prettier` + `xo`** comme garde-fous format/lint dans `npm test`. `npm test` doit donc passer les trois : prettier, xo, puis les tests node.
+
 ```json
 {
   "name": "brain",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "bin": { "brain": "src/cli.tsx" },
+  "engines": { "node": ">=20" },
   "scripts": {
     "start": "tsx src/cli.tsx",
-    "test": "node --import tsx --test test/*.test.ts"
+    "test": "prettier --check . && xo && node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
     "ink": "^5.0.1",
@@ -85,11 +90,26 @@ export type Item = {
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
+    "@vdemedes/prettier-config": "^2.0.1",
+    "eslint-config-xo-react": "^0.27.0",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
     "tsx": "^4.16.0",
-    "typescript": "^5.5.0"
-  }
+    "typescript": "^5.5.0",
+    "xo": "^0.53.1"
+  },
+  "xo": {
+    "extends": "xo-react",
+    "prettier": true,
+    "rules": {
+      "react/prop-types": "off"
+    }
+  },
+  "prettier": "@vdemedes/prettier-config"
 }
 ```
+
+> `xo` reprend la config `xo-react` du scaffold existant (réutilise le lockfile). Si `xo` bloque un pattern légitime du plan (ex. import avec extension `.ts`, nommage de `catch`), **relâcher la règle précise dans le bloc `xo.rules`** plutôt que tordre le code — le noter dans le rapport. Ne pas ajouter de règles préventivement.
 
 - [ ] **Step 2: Créer `tsconfig.json`**
 
@@ -128,16 +148,24 @@ test("le type Item se compile et un objet valide est bien formé", () => {
 });
 ```
 
-- [ ] **Step 5: Installer et lancer les tests**
+- [ ] **Step 5: Nettoyer l'ancien scaffold create-ink-app**
+
+Le repo part d'un scaffold hello-world jamais utilisé, incompatible avec la nouvelle stack. Supprimer :
+- `source/` (ancien `app.tsx`/`cli.tsx` hello-world), `test.tsx`, `dist/`, `package-lock.json` (regénéré à l'install).
+- Ne pas toucher : `docs/`, `standards/`, `.editorconfig`, `.prettierignore`, `.gitattributes`, `readme.md` (sera remplacé en Task 7).
+
+Puis **mettre à jour `CLAUDE.md`** pour refléter la stack réelle : commandes (`npm start` via tsx, `npm test` = prettier + xo + node:test, plus de `npm run build`), dossier `src/` (et non `source/`), point d'entrée `src/cli.tsx`. Garder les sections « architecture rule » et le renvoi à `standards/ink.md` telles quelles.
+
+- [ ] **Step 6: Installer et lancer les tests**
 
 Run: `npm install && npm test`
-Expected: 1 test passe (`smoke`).
+Expected: prettier + xo passent, 1 test node passe (`smoke`).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add package.json tsconfig.json src/types.ts test/smoke.test.ts
-git commit -m "chore: scaffold brain (ink + tsx + node:test)"
+git rm -r source test.tsx dist 2>/dev/null; git add -A
+git commit -m "chore: scaffold brain (ink 5 + tsx + node:test, keep xo/prettier)"
 ```
 
 ---
@@ -333,10 +361,11 @@ export function buildView(
 ): { due: Item[]; active: Item[] } {
   const pending = items.filter((i) => !i.done);
   return {
-    // remindOn au format AAAA-MM-JJ → tri lexical = tri chronologique ; sort() stable garde l'ordre fichier à date égale
+    // dus : remindOn non-null (isDue l'exige). Format AAAA-MM-JJ → tri lexical = chronologique ;
+    // sort() stable garde l'ordre fichier à date égale. String() évite le non-null assertion (xo).
     due: pending
       .filter((i) => isDue(i, todayYmd))
-      .sort((a, b) => (a.remindOn! < b.remindOn! ? -1 : a.remindOn! > b.remindOn! ? 1 : 0)),
+      .sort((a, b) => String(a.remindOn).localeCompare(String(b.remindOn))),
     active: pending.filter((i) => !isDue(i, todayYmd)),
   };
 }
