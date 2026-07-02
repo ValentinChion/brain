@@ -1,0 +1,14 @@
+{
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"type": "command",
+						"command": "echo '=== standards/ink.md (coding standard — always applies) ==='; cat standards/ink.md"
+					}
+				]
+			}
+		]
+	}
+}
