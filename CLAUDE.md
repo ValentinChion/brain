@@ -6,17 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `brain` is a terminal UI (TUI) todo/feedback panel built with **Node/TypeScript + [Ink](https://github.com/vadimdemedes/ink)** (React for the terminal). It's meant to run continuously in a Ghostty split as an always-visible, friction-free capture pad — see `docs/plans/2026-07-02-brain-design.md` for the product intent and `docs/plans/2026-07-02-brain-implementation-plan.md` for the build plan.
 
-Current `source/` is still the `create-ink-app` hello-world scaffold; the real app has not been implemented yet. Docs and plans are in **French**.
+The real app has not been implemented yet beyond the scaffold. Docs and plans are in **French**.
 
 ## Commands
 
-- `npm run build` — compile `source/` → `dist/` via `tsc`
-- `npm run dev` — `tsc --watch`
-- `npm test` — runs `prettier --check .` + `xo` (lint) + `ava` (tests). CI-equivalent; all three must pass.
-- Run a single test: `npx ava test.tsx -m "greet unknown user"` (`-m` matches the test title)
+- `npm start` — run the CLI via `tsx src/cli.tsx` (no build step)
+- `npm test` — runs `prettier --check .` + `xo` (lint) + `node:test` (tests). CI-equivalent; all three must pass.
+- Run a single test: `npx node --import tsx --test test/smoke.test.ts`
 - Lint/format only: `npx xo` / `npx prettier --check .`
 
-The published binary is `dist/cli.js` (`bin` in package.json), so `build` must run before the CLI works. ESM project (`"type": "module"`) — use `.js` extensions in relative imports even from `.tsx` source.
+The entry point is `src/cli.tsx` (`bin` in package.json), run directly by `tsx` — no build/compile step. ESM project (`"type": "module"`) — use `.ts`/`.tsx` extensions in relative imports since there's no compiled output.
 
 ## Architecture rule (non-negotiable)
 
@@ -32,4 +31,4 @@ Other load-bearing points from the standard: one active `useInput` per responsib
 
 ## Testing
 
-Split per `standards/ink.md` §9: pure logic → `node:test`/`node:assert` (the design plan asks for `assert`-based self-checks on the display sort/filter and reminder-date parsing); Ink components → `ink-testing-library` for a few key interactions only (see `test.tsx` for the pattern, incl. `stdin.write` ANSI sequences).
+Split per `standards/ink.md` §9: pure logic → `node:test`/`node:assert` (the design plan asks for `assert`-based self-checks on the display sort/filter and reminder-date parsing); Ink components → `ink-testing-library` for a few key interactions only (see `standards/ink.md` §9 for the pattern, incl. `stdin.write` ANSI sequences).
