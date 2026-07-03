@@ -45,7 +45,13 @@
 			"@typescript-eslint/no-implicit-any-catch": "off",
 			"unicorn/catch-error-name": "off",
 			"unicorn/prevent-abbreviations": "off",
-			"n/prefer-global/process": "off"
+			"n/prefer-global/process": "off",
+			"unicorn/prefer-switch": "off",
+			"react/hook-use-state": "off",
+			"react/no-unescaped-entities": "off",
+			"react/jsx-sort-props": "off",
+			"react/prefer-read-only-props": "off",
+			"react/boolean-prop-naming": "off"
 		}
 	},
 	"prettier": "@vdemedes/prettier-config"
