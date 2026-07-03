@@ -16,6 +16,7 @@ import {
 } from './notes.ts';
 import {load, save, loadNotes, saveNotes} from './storage.ts';
 import MultilineInput from './multiline-input.tsx';
+import {color, glyph, worldColor} from './theme.ts';
 
 type Mode = 'input' | 'nav' | 'reminder';
 type World = 'tasks' | 'notes';
@@ -65,6 +66,11 @@ export default function App() {
 	// fenêtre de scroll : hauteur du terminal moins le chrome (titre, barre, hints)
 	// ponytail: marge fixe de 8 lignes, ajuster si le chrome grossit
 	const rows = Math.max(1, (stdout?.rows ?? 24) - 8);
+	const cols = stdout?.columns ?? 80;
+	// bannière signature « ressort aujourd'hui » : label + filet qui remplit la largeur
+	const dueLabel = ` ${glyph.moreUp} ressort aujourd'hui `;
+	const dueRule =
+		dueLabel + glyph.rule.repeat(Math.max(4, cols - dueLabel.length - 2));
 	const {start, end} = windowView(visible.length, clampedSel, rows);
 	const shown = visible.slice(start, end);
 	const noteWin = windowView(noteList.length, noteSel, rows);
@@ -296,12 +302,12 @@ export default function App() {
 		<Box flexDirection="column" padding={1}>
 			<Text bold>
 				🧠 brain{'  '}
-				<Text color={world === 'tasks' ? 'green' : 'magenta'}>
+				<Text color={worldColor(world)}>
 					{world === 'tasks' ? '[tâches]' : '[notes]'}
 				</Text>
 				<Text dimColor> · Tab pour changer</Text>
 			</Text>
-			{loadError && <Text color="red">{loadError}</Text>}
+			{loadError && <Text color={color.danger}>{loadError}</Text>}
 
 			{world === 'tasks' ? (
 				<TasksBody
@@ -310,6 +316,7 @@ export default function App() {
 					start={start}
 					end={end}
 					due={view.due}
+					dueRule={dueRule}
 					today={today}
 					active={mode !== 'input'}
 					selectedId={visible[clampedSel]?.id}
@@ -328,15 +335,19 @@ export default function App() {
 			<Box marginTop={1}>
 				{world === 'tasks' && mode === 'reminder' ? (
 					<Box flexDirection="column">
-						<Text color="cyan">⏰ rappel</Text>
-						<Text>◀ {reminderValue ?? today} ▶</Text>
+						<Text color={color.task}>⏰ rappel</Text>
+						<Text>
+							{glyph.stepLeft} {reminderValue ?? today} {glyph.stepRight}
+						</Text>
 						<Text dimColor>
 							←/→ ±1 j · ↑/↓ ±1 sem · ⌫ retirer · ↵ ok · esc annuler
 						</Text>
 					</Box>
 				) : world === 'tasks' ? (
 					<Box>
-						<Text color="green">{editingId ? '✎ ' : '› '}[tâche] </Text>
+						<Text color={color.task}>
+							{editingId ? `${glyph.editing} ` : `${glyph.prompt} `}[tâche]{' '}
+						</Text>
 						<TextInput
 							value={draft}
 							onChange={setDraft}
@@ -347,7 +358,9 @@ export default function App() {
 					</Box>
 				) : (
 					<Box>
-						<Text color="magenta">{editingNoteId ? '✎ ' : '› '}[note] </Text>
+						<Text color={color.note}>
+							{editingNoteId ? `${glyph.editing} ` : `${glyph.prompt} `}[note]{' '}
+						</Text>
 						<MultilineInput
 							value={noteDraft}
 							onChange={setNoteDraft}
@@ -390,6 +403,7 @@ function TasksBody({
 	start,
 	end,
 	due,
+	dueRule,
 	today,
 	active,
 	selectedId,
@@ -399,6 +413,7 @@ function TasksBody({
 	start: number;
 	end: number;
 	due: Item[];
+	dueRule: string;
 	today: string;
 	active: boolean;
 	selectedId: string | undefined;
@@ -410,9 +425,13 @@ function TasksBody({
 					Rien pour l'instant. Écris ci-dessous pour capturer.
 				</Text>
 			)}
-			{start > 0 && <Text dimColor>▲ {start} de plus</Text>}
+			{start > 0 && (
+				<Text dimColor>
+					{glyph.moreUp} {start} de plus
+				</Text>
+			)}
 			{due.length > 0 && start === 0 && (
-				<Text color="yellow">— Ressort aujourd'hui —</Text>
+				<Text color={color.resurface}>{dueRule}</Text>
 			)}
 			{shown.map(it => (
 				<Row
@@ -423,7 +442,9 @@ function TasksBody({
 				/>
 			))}
 			{end < visible.length && (
-				<Text dimColor>▼ {visible.length - end} de plus</Text>
+				<Text dimColor>
+					{glyph.moreDown} {visible.length - end} de plus
+				</Text>
 			)}
 		</Box>
 	);
@@ -451,7 +472,11 @@ function NotesBody({
 					Aucune note. Écris ci-dessous, ou Tab pour les tâches.
 				</Text>
 			)}
-			{start > 0 && <Text dimColor>▲ {start} de plus</Text>}
+			{start > 0 && (
+				<Text dimColor>
+					{glyph.moreUp} {start} de plus
+				</Text>
+			)}
 			{shown.map(note => (
 				<NoteRow
 					key={note.id}
@@ -459,7 +484,11 @@ function NotesBody({
 					selected={active && selectedId === note.id}
 				/>
 			))}
-			{end < list.length && <Text dimColor>▼ {list.length - end} de plus</Text>}
+			{end < list.length && (
+				<Text dimColor>
+					{glyph.moreDown} {list.length - end} de plus
+				</Text>
+			)}
 		</Box>
 	);
 }
@@ -475,10 +504,16 @@ function Row({
 }) {
 	const due = isDue(item, today);
 	return (
-		<Text color={due ? 'yellow' : undefined} inverse={selected}>
-			{selected ? '❯ ' : '  '}
-			{item.text}
-			{item.remindOn ? `  (⏰ ${item.remindOn})` : ''}
+		<Text bold={selected}>
+			<Text color={color.task}>{selected ? `${glyph.caret} ` : '  '}</Text>
+			<Text color={due ? color.resurface : undefined}>{item.text}</Text>
+			{item.remindOn && (
+				<Text color={due ? color.resurface : undefined} dimColor={!due}>
+					{'  '}
+					{glyph.bullet}
+					{item.remindOn.slice(5)}
+				</Text>
+			)}
 		</Text>
 	);
 }
@@ -486,15 +521,18 @@ function Row({
 function NoteRow({note, selected}: {note: Note; selected: boolean}) {
 	const lines = note.text.split('\n');
 	const extra = lines.length - 1;
-	// sélectionnée → corps complet ; sinon 1ʳᵉ ligne + indicateur multi-ligne
-	const body = selected
-		? note.text
-		: lines[0] + (extra > 0 ? `  ↵ +${extra}` : '');
+	// gouttière fixe 2 colonnes (caret + épingle) → les corps s'alignent
 	return (
-		<Text inverse={selected}>
-			{selected ? '❯ ' : '  '}
-			{note.pinned ? '📌 ' : ''}
-			{body}
+		<Text bold={selected}>
+			<Text color={color.note}>{selected ? glyph.caret : ' '}</Text>
+			<Text color={color.pinned}>{note.pinned ? glyph.pin : ' '}</Text>{' '}
+			{selected ? note.text : lines[0]}
+			{!selected && extra > 0 && (
+				<Text dimColor>
+					{'  '}
+					{glyph.multiline} +{extra}
+				</Text>
+			)}
 		</Text>
 	);
 }
@@ -514,10 +552,10 @@ function SweepView({
 	return (
 		<Box flexDirection="column" padding={1}>
 			<Text bold>🧠 brain · ménage des notes</Text>
-			{loadError && <Text color="red">{loadError}</Text>}
+			{loadError && <Text color={color.danger}>{loadError}</Text>}
 			{mode === 'bulk' ? (
 				<Box flexDirection="column" marginTop={1}>
-					<Text color="yellow">
+					<Text color={color.note}>
 						{list.length} note{list.length > 1 ? 's' : ''} de plus d'une semaine
 						:
 					</Text>
@@ -540,7 +578,7 @@ function SweepView({
 				</Box>
 			) : (
 				<Box flexDirection="column" marginTop={1}>
-					<Text color="yellow">
+					<Text color={color.note}>
 						Note {index + 1}/{list.length} :
 					</Text>
 					<Text>{current?.text ?? ''}</Text>
