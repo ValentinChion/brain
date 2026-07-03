@@ -38,7 +38,8 @@
 			"capitalized-comments": "off",
 			"@typescript-eslint/ban-types": "off",
 			"n/file-extension-in-import": "off",
-			"@typescript-eslint/no-floating-promises": "off"
+			"@typescript-eslint/no-floating-promises": "off",
+			"@typescript-eslint/naming-convention": "off"
 		}
 	},
 	"prettier": "@vdemedes/prettier-config"
