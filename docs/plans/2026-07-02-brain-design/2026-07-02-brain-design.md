@@ -51,7 +51,7 @@ L'app tourne en continu : pas de « quitter » au quotidien (on peut la fermer a
 
 ### Saisie de la date de rappel (`r`)
 
-Un champ texte qui accepte au minimum une date `AAAA-MM-JJ`. Support de quelques raccourcis simples si c'est trivial (`demain`, `vendredi`) — sinon la date absolue suffit pour la v1. Champ vide = pas de rappel.
+Un **stepper** au clavier plutôt qu'une saisie texte (moins de friction pour un usage « futur proche »). `r` ouvre un curseur de date : `←/→` = ±1 jour, `↑/↓` = ±1 semaine, `⌫` retire le rappel, `↵` valide, `Échap` annule. Plancher à aujourd'hui (pas de rappel dans le passé). Voir `docs/plans/2026-07-03-reminder-stepper.md`.
 
 ## Affichage
 

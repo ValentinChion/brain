@@ -32,7 +32,7 @@ Ouvrir un split dédié et y lancer `brain` — le laisser ouvert toute la journ
 
 - Barre du bas (par défaut) : taper + `Entrée` pour capturer. `↑` pour naviguer.
 - En navigation : `↑/↓` bouger · `Espace` fait · `r` rappel · `e` éditer · `d` supprimer · `Échap` retour saisie.
-- Rappel : `AAAA-MM-JJ`, `demain`, `aujourd'hui`, ou vide pour effacer.
+- Rappel (`r`) : curseur de date aux flèches — `←/→` ±1 jour · `↑/↓` ±1 semaine · `⌫` retirer · `↵` valider · `Échap` annuler. Plancher : aujourd'hui (pas de rappel dans le passé).
 
 ## Données
 
