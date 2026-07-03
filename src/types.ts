@@ -6,3 +6,10 @@ export type Item = {
 	done: boolean;
 	doneAt: string | null; // ISO 8601, quand cochée
 };
+
+export type Note = {
+	id: string; // crypto.randomUUID()
+	text: string; // peut contenir des "\n"
+	createdAt: string; // ISO 8601 — base de la péremption
+	pinned: boolean;
+};

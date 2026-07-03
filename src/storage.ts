@@ -7,36 +7,53 @@ import {
 	writeFileSync,
 	renameSync,
 } from 'node:fs';
-import type {Item} from './types.ts';
+import type {Item, Note} from './types.ts';
 
 export function brainDir(): string {
 	return process.env.BRAIN_DIR ?? join(homedir(), '.brain');
 }
 
-function filePath(): string {
-	return join(brainDir(), 'tasks.json');
-}
-
-export function load(): {items: Item[]; error: string | null} {
-	const path = filePath();
-	if (!existsSync(path)) return {items: [], error: null};
+// ponytail: cœur générique — même logique atomique + anti-corruption pour tasks.json et notes.json
+function loadArray<T>(file: string): {data: T[]; error: string | null} {
+	const path = join(brainDir(), file);
+	if (!existsSync(path)) return {data: [], error: null};
 	try {
 		const parsed = JSON.parse(readFileSync(path, 'utf8'));
 		if (!Array.isArray(parsed)) throw new Error('racine non-tableau');
-		return {items: parsed as Item[], error: null};
+		return {data: parsed as T[], error: null};
 	} catch (e) {
-		// ponytail: on ne réécrit pas par-dessus un fichier corrompu, on repart vide en mémoire
+		// on ne réécrit pas par-dessus un fichier corrompu, on repart vide en mémoire
 		return {
-			items: [],
+			data: [],
 			error: `Fichier illisible (${(e as Error).message}) — non modifié.`,
 		};
 	}
 }
 
-export function save(items: Item[]): void {
+function saveArray<T>(file: string, data: T[]): void {
 	const dir = brainDir();
 	mkdirSync(dir, {recursive: true});
-	const tmp = join(dir, `tasks.json.tmp-${process.pid}`);
-	writeFileSync(tmp, JSON.stringify(items, null, 2));
-	renameSync(tmp, filePath()); // atomique sur le même volume
+	const tmp = join(dir, `${file}.tmp-${process.pid}`);
+	writeFileSync(tmp, JSON.stringify(data, null, 2));
+	renameSync(tmp, join(dir, file)); // atomique sur le même volume
+}
+
+// tâches — signatures v1 inchangées (app.tsx ne bouge pas pour les tâches)
+export function load(): {items: Item[]; error: string | null} {
+	const {data, error} = loadArray<Item>('tasks.json');
+	return {items: data, error};
+}
+
+export function save(items: Item[]): void {
+	saveArray('tasks.json', items);
+}
+
+// notes
+export function loadNotes(): {notes: Note[]; error: string | null} {
+	const {data, error} = loadArray<Note>('notes.json');
+	return {notes: data, error};
+}
+
+export function saveNotes(notes: Note[]): void {
+	saveArray('notes.json', notes);
 }
