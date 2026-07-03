@@ -39,7 +39,13 @@
 			"@typescript-eslint/ban-types": "off",
 			"n/file-extension-in-import": "off",
 			"@typescript-eslint/no-floating-promises": "off",
-			"@typescript-eslint/naming-convention": "off"
+			"@typescript-eslint/naming-convention": "off",
+			"@typescript-eslint/no-unsafe-assignment": "off",
+			"@typescript-eslint/no-unsafe-call": "off",
+			"@typescript-eslint/no-implicit-any-catch": "off",
+			"unicorn/catch-error-name": "off",
+			"unicorn/prevent-abbreviations": "off",
+			"n/prefer-global/process": "off"
 		}
 	},
 	"prettier": "@vdemedes/prettier-config"
