@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 import {Box, Text, useInput, useStdout} from 'ink';
 import TextInput from 'ink-text-input';
 import type {Item} from './types.ts';
-import {todayYMD, parseReminder} from './date.ts';
+import {todayYMD, stepReminder} from './date.ts';
 import {buildView, isDue, windowView} from './view.ts';
 import {addItem, editText, setDone, setReminder, removeItem} from './items.ts';
 import {load, save} from './storage.ts';
@@ -17,8 +17,7 @@ export default function App() {
 	const [loadError] = useState<string | null>(initial.error);
 	const [mode, setMode] = useState<Mode>('input');
 	const [draft, setDraft] = useState('');
-	const [reminderDraft, setReminderDraft] = useState('');
-	const [reminderError, setReminderError] = useState<string | null>(null);
+	const [reminderValue, setReminderValue] = useState<string | null>(null);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [selected, setSelected] = useState(0);
 
@@ -53,13 +52,29 @@ export default function App() {
 		}
 
 		if (mode === 'reminder') {
-			if (key.escape) {
-				setReminderDraft('');
-				setReminderError(null);
+			const target = visible[clampedSel];
+			if (!target || key.escape) {
 				setMode('nav');
+				return;
 			}
 
-			return; // la saisie de date est gérée par le TextInput focus
+			if (key.return) {
+				commit(setReminder(items, target.id, reminderValue));
+				setMode('nav');
+			} else if (key.backspace || key.delete) {
+				commit(setReminder(items, target.id, null)); // ⌫ = retirer le rappel
+				setMode('nav');
+			} else if (key.rightArrow) {
+				setReminderValue(v => stepReminder(v, 'day', 1, today));
+			} else if (key.leftArrow) {
+				setReminderValue(v => stepReminder(v, 'day', -1, today));
+			} else if (key.upArrow) {
+				setReminderValue(v => stepReminder(v, 'week', 1, today));
+			} else if (key.downArrow) {
+				setReminderValue(v => stepReminder(v, 'week', -1, today));
+			}
+
+			return;
 		}
 
 		if (mode === 'nav') {
@@ -81,8 +96,7 @@ export default function App() {
 					setEditingId(target.id);
 					setMode('input');
 				} else if (input === 'r') {
-					setReminderDraft(target.remindOn ?? '');
-					setReminderError(null);
+					setReminderValue(target.remindOn ?? today);
 					setMode('reminder');
 				}
 			}
@@ -105,25 +119,6 @@ export default function App() {
 		}
 
 		setDraft('');
-	};
-
-	const submitReminder = (value: string) => {
-		const target = visible[clampedSel];
-		if (!target) {
-			setMode('nav');
-			return;
-		}
-
-		const res = parseReminder(value, today);
-		if (!res.ok) {
-			setReminderError(res.error);
-			return;
-		}
-
-		commit(setReminder(items, target.id, res.value));
-		setReminderDraft('');
-		setReminderError(null);
-		setMode('nav');
 	};
 
 	return (
@@ -156,19 +151,11 @@ export default function App() {
 			<Box marginTop={1}>
 				{mode === 'reminder' ? (
 					<Box flexDirection="column">
-						<Box>
-							<Text color="cyan">
-								Rappel (AAAA-MM-JJ / demain, vide = effacer) :{' '}
-							</Text>
-							<TextInput
-								value={reminderDraft}
-								onChange={setReminderDraft}
-								onSubmit={submitReminder}
-								focus
-							/>
-						</Box>
-						{reminderError && <Text color="red">{reminderError}</Text>}
-						<Text dimColor>Échap pour annuler</Text>
+						<Text color="cyan">⏰ rappel</Text>
+						<Text>◀ {reminderValue ?? today} ▶</Text>
+						<Text dimColor>
+							←/→ ±1 j · ↑/↓ ±1 sem · ⌫ retirer · ↵ ok · esc annuler
+						</Text>
 					</Box>
 				) : (
 					<Box>
