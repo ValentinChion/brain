@@ -10,28 +10,14 @@ export function addDays(ymd: string, n: number): string {
 	return todayYMD(dt);
 }
 
-function isRealDate(ymd: string): boolean {
-	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-	if (!m) return false;
-	const [, y, mo, d] = m.map(Number);
-	const dt = new Date(y, mo - 1, d);
-	return (
-		dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d
-	);
-}
-
-export function parseReminder(
-	input: string,
+export function stepReminder(
+	current: string | null,
+	unit: 'day' | 'week',
+	dir: -1 | 1,
 	todayYmd: string,
-): {ok: true; value: string | null} | {ok: false; error: string} {
-	const s = input.trim().toLowerCase();
-	if (s === '') return {ok: true, value: null};
-	if (s === "aujourd'hui" || s === 'aujourdhui')
-		return {ok: true, value: todayYmd};
-	if (s === 'demain') return {ok: true, value: addDays(todayYmd, 1)};
-	if (isRealDate(s)) return {ok: true, value: s};
-	return {
-		ok: false,
-		error: "Format attendu : AAAA-MM-JJ, « aujourd'hui » ou « demain ».",
-	};
+): string {
+	const base = current ?? todayYmd;
+	const next = addDays(base, (unit === 'week' ? 7 : 1) * dir);
+	// plancher : un rappel dans le passé n'a pas de sens (il serait « dû » tout de suite)
+	return next < todayYmd ? todayYmd : next;
 }

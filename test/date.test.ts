@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {todayYMD, addDays, parseReminder} from '../src/date.ts';
+import {todayYMD, addDays, stepReminder} from '../src/date.ts';
 
 test('todayYMD formate une date locale en AAAA-MM-JJ', () => {
 	assert.equal(todayYMD(new Date(2026, 6, 2)), '2026-07-02'); // mois 6 = juillet
@@ -13,31 +13,37 @@ test('addDays gère le passage de mois', () => {
 	assert.equal(addDays('2026-01-01', -1), '2025-12-31');
 });
 
-test('parseReminder accepte une date absolue valide', () => {
-	assert.deepEqual(parseReminder('2026-08-15', '2026-07-02'), {
-		ok: true,
-		value: '2026-08-15',
-	});
+test("stepReminder avance/recule d'un jour et d'une semaine", () => {
+	assert.equal(
+		stepReminder('2026-07-05', 'day', 1, '2026-07-01'),
+		'2026-07-06',
+	);
+	assert.equal(
+		stepReminder('2026-07-05', 'day', -1, '2026-07-01'),
+		'2026-07-04',
+	);
+	assert.equal(
+		stepReminder('2026-07-05', 'week', 1, '2026-07-01'),
+		'2026-07-12',
+	);
+	assert.equal(
+		stepReminder('2026-07-12', 'week', -1, '2026-07-01'),
+		'2026-07-05',
+	);
 });
 
-test('parseReminder: vide ou espaces = effacer le rappel (value null)', () => {
-	assert.deepEqual(parseReminder('', '2026-07-02'), {ok: true, value: null});
-	assert.deepEqual(parseReminder('   ', '2026-07-02'), {ok: true, value: null});
+test("stepReminder ne descend jamais sous aujourd'hui (plancher)", () => {
+	assert.equal(
+		stepReminder('2026-07-02', 'day', -1, '2026-07-02'),
+		'2026-07-02',
+	);
+	assert.equal(
+		stepReminder('2026-07-04', 'week', -1, '2026-07-02'),
+		'2026-07-02',
+	);
 });
 
-test("parseReminder gère les raccourcis aujourd'hui / demain", () => {
-	assert.deepEqual(parseReminder("aujourd'hui", '2026-07-02'), {
-		ok: true,
-		value: '2026-07-02',
-	});
-	assert.deepEqual(parseReminder('demain', '2026-07-02'), {
-		ok: true,
-		value: '2026-07-03',
-	});
-});
-
-test('parseReminder rejette un format inconnu ou une date impossible', () => {
-	assert.equal(parseReminder('vendredi', '2026-07-02').ok, false);
-	assert.equal(parseReminder('2026-13-01', '2026-07-02').ok, false);
-	assert.equal(parseReminder('2026-02-30', '2026-07-02').ok, false);
+test("stepReminder démarre à aujourd'hui quand current est null", () => {
+	assert.equal(stepReminder(null, 'day', 1, '2026-07-02'), '2026-07-03');
+	assert.equal(stepReminder(null, 'day', -1, '2026-07-02'), '2026-07-02'); // planché
 });
