@@ -4,9 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`brain` is a terminal UI (TUI) todo/feedback panel built with **Node/TypeScript + [Ink](https://github.com/vadimdemedes/ink)** (React for the terminal). It's meant to run continuously in a Ghostty split as an always-visible, friction-free capture pad — see `docs/plans/2026-07-02-brain-design.md` for the product intent and `docs/plans/2026-07-02-brain-implementation-plan.md` for the build plan.
+`brain` is a terminal UI (TUI) todo/feedback + notes panel built with **Node/TypeScript + [Ink](https://github.com/vadimdemedes/ink)** (React for the terminal). It's meant to run continuously in a Ghostty split as an always-visible, friction-free capture pad — see `docs/plans/2026-07-02-brain-design/` for the tasks product intent and `docs/plans/2026-07-03-brain-notes-design/` for the notes addition (design + implementation plan).
 
-The real app has not been implemented yet beyond the scaffold. Docs and plans are in **French**.
+Two "worlds" in one panel, toggled with `Tab`: **tasks** (capture + arrow-key reminder stepper, due items resurface) and **notes** (reference material you keep/pin/sweep). Docs and plans are in **French**.
+
+### Modules
+
+Pure, tested (`node:test`): `date.ts` (`todayYMD`/`addDays`/`stepReminder`), `view.ts` (`buildView`/`isDue`/`windowView`), `items.ts` (task ops), `notes.ts` (note ops: pin/sort/staleness/sweep), `storage.ts` (atomic JSON for `tasks.json` + `notes.json`), `multiline.ts` (`decodeKey` — kitty-aware key→action). Ink layer (not unit-tested): `app.tsx` (both worlds, `isActive`-gated `useInput` per responsibility), `multiline-input.tsx` (multi-line note field; enables the kitty keyboard protocol while focused so `Shift+Enter` = newline), `cli.tsx`.
 
 ## Commands
 
