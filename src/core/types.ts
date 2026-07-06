@@ -13,3 +13,16 @@ export type Note = {
 	createdAt: string; // ISO 8601 — base de la péremption
 	pinned: boolean;
 };
+
+export type GoogleToken = {
+	refreshToken: string;
+	accessToken: string;
+	expiresAt: string; // ISO 8601
+};
+
+export type Meeting = {
+	id: string;
+	title: string;
+	start: string; // ISO 8601
+	end: string; // ISO 8601
+};

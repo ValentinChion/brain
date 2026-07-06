@@ -1,10 +1,15 @@
-import React, {useState} from 'react';
-import {Box, Text, useInput, useStdout} from 'ink';
-import TextInput from 'ink-text-input';
-import type {Item, Note} from './types.ts';
-import {todayYMD, stepReminder} from './date.ts';
-import {buildView, isDue, windowView} from './view.ts';
-import {addItem, editText, setDone, setReminder, removeItem} from './items.ts';
+import React, {useState, useEffect} from 'react';
+import {useInput, useStdout, useApp} from 'ink';
+import type {Item, Note, Meeting} from './core/types.ts';
+import {todayYMD, stepReminder} from './core/date.ts';
+import {buildView, windowView} from './core/view.ts';
+import {
+	addItem,
+	editText,
+	setDone,
+	setReminder,
+	removeItem,
+} from './core/items.ts';
 import {
 	addNote,
 	editNote,
@@ -13,10 +18,23 @@ import {
 	sortNotes,
 	staleNotes,
 	sweepStale,
-} from './notes.ts';
-import {load, save, loadNotes, saveNotes} from './storage.ts';
-import MultilineInput from './multiline-input.tsx';
-import {color, glyph, worldColor} from './theme.ts';
+} from './core/notes.ts';
+import {load, save, loadNotes, saveNotes} from './core/storage.ts';
+import {glyph, worldColor} from './core/theme.ts';
+import {parseCommand} from './core/commands.ts';
+import {isCtrlC} from './core/multiline.ts';
+import {connect, fetchTodaysEvents, isConnected} from './core/google-client.ts';
+import TasksBody from './components/organisms/tasks-body.tsx';
+import NotesBody from './components/organisms/notes-body.tsx';
+import SweepView from './components/organisms/sweep-view.tsx';
+import ConnectPrompt from './components/organisms/connect-prompt.tsx';
+import InputBar from './components/molecules/input-bar.tsx';
+import ReminderStepper from './components/molecules/reminder-stepper.tsx';
+import HintBar from './components/molecules/hint-bar.tsx';
+import AgendaStatus, {
+	type ConnState,
+} from './components/molecules/agenda-status.tsx';
+import AppLayout from './components/templates/app-layout.tsx';
 
 type Mode = 'input' | 'nav' | 'reminder';
 type World = 'tasks' | 'notes';
@@ -53,7 +71,76 @@ export default function App() {
 	const [sweepMode, setSweepMode] = useState<'bulk' | 'review'>('bulk');
 	const [sweepIndex, setSweepIndex] = useState(0);
 
+	// --- agenda Google (v1 : connexion + lecture) ---
+	const [connState, setConnState] = useState<ConnState>(() =>
+		isConnected() ? 'connected' : 'disconnected',
+	);
+	const [meetings, setMeetings] = useState<Meeting[]>([]);
+	const [connectError, setConnectError] = useState<string | null>(null);
+	const [connectPromptOpen, setConnectPromptOpen] = useState(
+		() => !isConnected(),
+	);
+
+	// charge les réunions du jour dès que l'état passe à « connected »
+	useEffect(() => {
+		if (connState !== 'connected') return;
+		let alive = true;
+		fetchTodaysEvents().then(
+			m => {
+				if (alive) setMeetings(m);
+			},
+			(error: unknown) => {
+				if (!alive) return;
+				setConnState('error');
+				setConnectError(error instanceof Error ? error.message : String(error));
+			},
+		);
+		return () => {
+			alive = false;
+		};
+	}, [connState]);
+
+	const runConnect = async () => {
+		setConnectPromptOpen(false);
+		setConnectError(null);
+		setConnState('connecting');
+		try {
+			await connect();
+			setConnState('connected'); // déclenche l'effet de chargement ci-dessus
+		} catch (error: unknown) {
+			setConnState('error');
+			setConnectError(error instanceof Error ? error.message : String(error));
+		}
+	};
+
+	// dispatch d'une commande de la barre (`/gauth`, …)
+	const runCommand = (name: string) => {
+		if (name === 'gauth') void runConnect();
+	};
+
 	const {stdout} = useStdout();
+	const {exit} = useApp();
+
+	// Ctrl+C quitte toujours — y compris quand le protocole kitty le remappe en
+	// `[99;5u` (sinon Ink ne le voit pas). exit() démonte proprement (restaure kitty).
+	useInput((input, key) => {
+		if (isCtrlC(input, key)) exit();
+	});
+
+	// hauteur du terminal, re-lue sur resize (le split Ghostty bouge souvent)
+	const [termRows, setTermRows] = useState(stdout?.rows ?? 24);
+	useEffect(() => {
+		if (!stdout) return;
+		const onResize = () => {
+			setTermRows(stdout.rows);
+		};
+
+		stdout.on('resize', onResize);
+
+		return () => {
+			stdout.off('resize', onResize);
+		};
+	}, [stdout]);
 
 	const today = todayYMD(new Date()); // recalculé à chaque render (donc à chaque frappe)
 	const view = buildView(items, today);
@@ -63,9 +150,9 @@ export default function App() {
 	const noteList = sortNotes(notes);
 	const noteSel = Math.min(noteSelected, Math.max(0, noteList.length - 1));
 
-	// fenêtre de scroll : hauteur du terminal moins le chrome (titre, barre, hints)
-	// ponytail: marge fixe de 8 lignes, ajuster si le chrome grossit
-	const rows = Math.max(1, (stdout?.rows ?? 24) - 8);
+	// fenêtre de scroll : hauteur du terminal moins le chrome (logo 4 lignes + marge, saisie, hints)
+	// ponytail: marge fixe de 11 lignes, ajuster si le chrome grossit
+	const rows = Math.max(1, termRows - 11);
 	const cols = stdout?.columns ?? 80;
 	// bannière signature « ressort aujourd'hui » : label + filet qui remplit la largeur
 	const dueLabel = ` ${glyph.moreUp} ressort aujourd'hui `;
@@ -87,6 +174,17 @@ export default function App() {
 		saveNotes(next);
 	};
 
+	const blocked = sweeping || connectPromptOpen;
+
+	// --- Prompt de connexion agenda au démarrage (s'affiche après le ménage) ---
+	useInput(
+		(input, key) => {
+			if (input === 'o' || key.return) void runConnect();
+			else if (input === 'n' || key.escape) setConnectPromptOpen(false);
+		},
+		{isActive: connectPromptOpen && !sweeping},
+	);
+
 	// --- Bascule Tab (tâches ⇄ notes). '[9u' = Tab si le protocole kitty le remappe. ---
 	useInput(
 		(input, key) => {
@@ -95,7 +193,7 @@ export default function App() {
 				setMode('input');
 			}
 		},
-		{isActive: !sweeping},
+		{isActive: !blocked},
 	);
 
 	// --- Monde TÂCHES (logique v1 inchangée : input / nav / reminder-stepper) ---
@@ -108,7 +206,7 @@ export default function App() {
 					setMode('nav');
 				}
 
-				return; // tout le reste de la frappe est géré par le TextInput focus
+				return; // tout le reste de la frappe est géré par le MultilineInput focus
 			}
 
 			if (mode === 'reminder') {
@@ -162,7 +260,7 @@ export default function App() {
 				}
 			}
 		},
-		{isActive: world === 'tasks' && !sweeping},
+		{isActive: world === 'tasks' && !blocked},
 	);
 
 	// --- Monde NOTES : ↑ sort de la barre vers la nav (draft conservé) ---
@@ -173,7 +271,7 @@ export default function App() {
 				setMode('nav');
 			}
 		},
-		{isActive: world === 'notes' && mode === 'input' && !sweeping},
+		{isActive: world === 'notes' && mode === 'input' && !blocked},
 	);
 
 	// --- Monde NOTES : navigation (p épingler, e éditer, d suppr) ---
@@ -199,7 +297,7 @@ export default function App() {
 				}
 			}
 		},
-		{isActive: world === 'notes' && mode === 'nav' && !sweeping},
+		{isActive: world === 'notes' && mode === 'nav' && !blocked},
 	);
 
 	// --- Balayage au démarrage ---
@@ -249,6 +347,13 @@ export default function App() {
 	);
 
 	const submitInput = (value: string) => {
+		const cmd = parseCommand(value);
+		if (cmd) {
+			runCommand(cmd.name);
+			setDraft('');
+			return;
+		}
+
 		const text = value.trim();
 		if (text === '') {
 			// rien à ajouter, on quitte juste l'édition éventuelle
@@ -267,6 +372,13 @@ export default function App() {
 	};
 
 	const submitNote = (value: string) => {
+		const cmd = parseCommand(value);
+		if (cmd) {
+			runCommand(cmd.name);
+			setNoteDraft('');
+			return;
+		}
+
 		if (value.trim() === '') {
 			setEditingNoteId(null);
 			return;
@@ -298,295 +410,77 @@ export default function App() {
 		);
 	}
 
-	return (
-		<Box flexDirection="column" padding={1}>
-			<Text bold>
-				🧠 brain{'  '}
-				<Text color={worldColor(world)}>
-					{world === 'tasks' ? '[tâches]' : '[notes]'}
-				</Text>
-				<Text dimColor> · Tab pour changer</Text>
-			</Text>
-			{loadError && <Text color={color.danger}>{loadError}</Text>}
-
-			{world === 'tasks' ? (
-				<TasksBody
-					visible={visible}
-					shown={shown}
-					start={start}
-					end={end}
-					due={view.due}
-					dueRule={dueRule}
-					today={today}
-					active={mode !== 'input'}
-					selectedId={visible[clampedSel]?.id}
-				/>
-			) : (
-				<NotesBody
-					list={noteList}
-					shown={shownNotes}
-					start={noteWin.start}
-					end={noteWin.end}
-					active={mode !== 'input'}
-					selectedId={noteList[noteSel]?.id}
-				/>
-			)}
-
-			<Box marginTop={1}>
-				{world === 'tasks' && mode === 'reminder' ? (
-					<Box flexDirection="column">
-						<Text color={color.task}>⏰ rappel</Text>
-						<Text>
-							{glyph.stepLeft} {reminderValue ?? today} {glyph.stepRight}
-						</Text>
-						<Text dimColor>
-							←/→ ±1 j · ↑/↓ ±1 sem · ⌫ retirer · ↵ ok · esc annuler
-						</Text>
-					</Box>
-				) : world === 'tasks' ? (
-					<Box>
-						<Text color={color.task}>
-							{editingId ? `${glyph.editing} ` : `${glyph.prompt} `}[tâche]{' '}
-						</Text>
-						<TextInput
-							value={draft}
-							onChange={setDraft}
-							onSubmit={submitInput}
-							focus={mode === 'input'}
-							placeholder="capturer une tâche / un feedback…"
-						/>
-					</Box>
-				) : (
-					<Box>
-						<Text color={color.note}>
-							{editingNoteId ? `${glyph.editing} ` : `${glyph.prompt} `}[note]{' '}
-						</Text>
-						<MultilineInput
-							value={noteDraft}
-							onChange={setNoteDraft}
-							onSubmit={submitNote}
-							onCancel={cancelNote}
-							focus={mode === 'input'}
-							placeholder="capturer une note…"
-						/>
-					</Box>
-				)}
-			</Box>
-
-			<Box marginTop={1}>
-				<Text dimColor>{hint(world, mode)}</Text>
-			</Box>
-		</Box>
-	);
-}
-
-function hint(world: World, mode: Mode): string {
-	if (world === 'tasks') {
-		if (mode === 'input') return 'Entrée: ajouter · ↑: naviguer · Tab: notes';
-		if (mode === 'nav') {
-			return '↑/↓ · Espace: fait · r: rappel · e: éditer · d: suppr · Échap: saisie';
-		}
-
-		return '';
+	if (connectPromptOpen) {
+		return <ConnectPrompt loadError={loadError} />;
 	}
 
-	if (mode === 'input') {
-		return 'Entrée: ajouter · Shift+Entrée: ligne · ↑: naviguer · Tab: tâches';
-	}
+	const body =
+		world === 'tasks' ? (
+			<TasksBody
+				visible={visible}
+				shown={shown}
+				start={start}
+				end={end}
+				due={view.due}
+				dueRule={dueRule}
+				today={today}
+				active={mode !== 'input'}
+				selectedId={visible[clampedSel]?.id}
+			/>
+		) : (
+			<NotesBody
+				list={noteList}
+				shown={shownNotes}
+				start={noteWin.start}
+				end={noteWin.end}
+				active={mode !== 'input'}
+				selectedId={noteList[noteSel]?.id}
+			/>
+		);
 
-	return '↑/↓ · p: épingler · e: éditer · d: suppr · Échap: saisie · Tab: tâches';
-}
+	const footer =
+		world === 'tasks' && mode === 'reminder' ? (
+			<ReminderStepper reminderValue={reminderValue} today={today} />
+		) : world === 'tasks' ? (
+			<InputBar
+				world="tasks"
+				editing={Boolean(editingId)}
+				value={draft}
+				focus={mode === 'input'}
+				placeholder="capturer une tâche / un feedback…"
+				onChange={setDraft}
+				onSubmit={submitInput}
+			/>
+		) : (
+			<InputBar
+				world="notes"
+				editing={Boolean(editingNoteId)}
+				value={noteDraft}
+				focus={mode === 'input'}
+				placeholder="capturer une note…"
+				onChange={setNoteDraft}
+				onSubmit={submitNote}
+				onCancel={cancelNote}
+			/>
+		);
 
-function TasksBody({
-	visible,
-	shown,
-	start,
-	end,
-	due,
-	dueRule,
-	today,
-	active,
-	selectedId,
-}: {
-	visible: Item[];
-	shown: Item[];
-	start: number;
-	end: number;
-	due: Item[];
-	dueRule: string;
-	today: string;
-	active: boolean;
-	selectedId: string | undefined;
-}) {
 	return (
-		<Box flexDirection="column">
-			{visible.length === 0 && (
-				<Text dimColor>
-					Rien pour l'instant. Écris ci-dessous pour capturer.
-				</Text>
-			)}
-			{start > 0 && (
-				<Text dimColor>
-					{glyph.moreUp} {start} de plus
-				</Text>
-			)}
-			{due.length > 0 && start === 0 && (
-				<Text color={color.resurface}>{dueRule}</Text>
-			)}
-			{shown.map(it => (
-				<Row
-					key={it.id}
-					item={it}
-					today={today}
-					selected={active && selectedId === it.id}
+		<AppLayout
+			termRows={termRows}
+			accent={worldColor(world)}
+			label={world === 'tasks' ? 'TÂCHES' : 'NOTES'}
+			loadError={loadError}
+			status={
+				<AgendaStatus
+					state={connState}
+					meetings={meetings}
+					nowISO={nowISO()}
+					error={connectError}
 				/>
-			))}
-			{end < visible.length && (
-				<Text dimColor>
-					{glyph.moreDown} {visible.length - end} de plus
-				</Text>
-			)}
-		</Box>
-	);
-}
-
-function NotesBody({
-	list,
-	shown,
-	start,
-	end,
-	active,
-	selectedId,
-}: {
-	list: Note[];
-	shown: Note[];
-	start: number;
-	end: number;
-	active: boolean;
-	selectedId: string | undefined;
-}) {
-	return (
-		<Box flexDirection="column">
-			{list.length === 0 && (
-				<Text dimColor>
-					Aucune note. Écris ci-dessous, ou Tab pour les tâches.
-				</Text>
-			)}
-			{start > 0 && (
-				<Text dimColor>
-					{glyph.moreUp} {start} de plus
-				</Text>
-			)}
-			{shown.map(note => (
-				<NoteRow
-					key={note.id}
-					note={note}
-					selected={active && selectedId === note.id}
-				/>
-			))}
-			{end < list.length && (
-				<Text dimColor>
-					{glyph.moreDown} {list.length - end} de plus
-				</Text>
-			)}
-		</Box>
-	);
-}
-
-function Row({
-	item,
-	today,
-	selected,
-}: {
-	item: Item;
-	today: string;
-	selected: boolean;
-}) {
-	const due = isDue(item, today);
-	return (
-		<Text bold={selected}>
-			<Text color={color.task}>{selected ? `${glyph.caret} ` : '  '}</Text>
-			<Text color={due ? color.resurface : undefined}>{item.text}</Text>
-			{item.remindOn && (
-				<Text color={due ? color.resurface : undefined} dimColor={!due}>
-					{'  '}
-					{glyph.bullet}
-					{item.remindOn.slice(5)}
-				</Text>
-			)}
-		</Text>
-	);
-}
-
-function NoteRow({note, selected}: {note: Note; selected: boolean}) {
-	const lines = note.text.split('\n');
-	const extra = lines.length - 1;
-	// gouttière fixe 2 colonnes (caret + épingle) → les corps s'alignent
-	return (
-		<Text bold={selected}>
-			<Text color={color.note}>{selected ? glyph.caret : ' '}</Text>
-			<Text color={color.pinned}>{note.pinned ? glyph.pin : ' '}</Text>{' '}
-			{selected ? note.text : lines[0]}
-			{!selected && extra > 0 && (
-				<Text dimColor>
-					{'  '}
-					{glyph.multiline} +{extra}
-				</Text>
-			)}
-		</Text>
-	);
-}
-
-function SweepView({
-	list,
-	mode,
-	index,
-	loadError,
-}: {
-	list: Note[];
-	mode: 'bulk' | 'review';
-	index: number;
-	loadError: string | null;
-}) {
-	const current = list[index];
-	return (
-		<Box flexDirection="column" padding={1}>
-			<Text bold>🧠 brain · ménage des notes</Text>
-			{loadError && <Text color={color.danger}>{loadError}</Text>}
-			{mode === 'bulk' ? (
-				<Box flexDirection="column" marginTop={1}>
-					<Text color={color.note}>
-						{list.length} note{list.length > 1 ? 's' : ''} de plus d'une semaine
-						:
-					</Text>
-					{list.slice(0, 8).map(note => (
-						<Text key={note.id} dimColor>
-							{'  · '}
-							{note.text.split('\n')[0]}
-						</Text>
-					))}
-					{list.length > 8 && (
-						<Text dimColor>
-							{'  '}… et {list.length - 8} autres
-						</Text>
-					)}
-					<Box marginTop={1}>
-						<Text dimColor>
-							[d] tout supprimer · [k] tout garder · [r] passer en revue
-						</Text>
-					</Box>
-				</Box>
-			) : (
-				<Box flexDirection="column" marginTop={1}>
-					<Text color={color.note}>
-						Note {index + 1}/{list.length} :
-					</Text>
-					<Text>{current?.text ?? ''}</Text>
-					<Box marginTop={1}>
-						<Text dimColor>[k] garder · [d] supprimer · [p] épingler</Text>
-					</Box>
-				</Box>
-			)}
-		</Box>
+			}
+			body={body}
+			footer={footer}
+			hints={<HintBar world={world} mode={mode} />}
+		/>
 	);
 }

@@ -1,16 +1,28 @@
-import {homedir} from 'node:os';
-import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {dirname, join} from 'node:path';
 import {
 	existsSync,
 	mkdirSync,
 	readFileSync,
 	writeFileSync,
 	renameSync,
+	chmodSync,
+	rmSync,
 } from 'node:fs';
-import type {Item, Note} from './types.ts';
+import type {Item, Note, GoogleToken} from './types.ts';
+
+// défaut : `<repo>/.brain`, résolu relativement au module (storage.ts est en
+// `<repo>/src/core/`) → fonctionne aussi quand `brain` est `npm link`é et lancé
+// depuis un autre dossier. Surchargeable via BRAIN_DIR.
+const REPO_BRAIN = join(
+	dirname(fileURLToPath(import.meta.url)),
+	'..',
+	'..',
+	'.brain',
+);
 
 export function brainDir(): string {
-	return process.env.BRAIN_DIR ?? join(homedir(), '.brain');
+	return process.env.BRAIN_DIR ?? REPO_BRAIN;
 }
 
 // ponytail: cœur générique — même logique atomique + anti-corruption pour tasks.json et notes.json
@@ -56,4 +68,37 @@ export function loadNotes(): {notes: Note[]; error: string | null} {
 
 export function saveNotes(notes: Note[]): void {
 	saveArray('notes.json', notes);
+}
+
+// token OAuth Google — fichier séparé, permissions restreintes (chmod 600)
+const TOKEN_FILE = 'google-token.json';
+
+export function loadToken(): GoogleToken | null {
+	const path = join(brainDir(), TOKEN_FILE);
+	if (!existsSync(path)) return null;
+	try {
+		const parsed = JSON.parse(
+			readFileSync(path, 'utf8'),
+		) as Partial<GoogleToken>;
+		if (typeof parsed.refreshToken === 'string') return parsed as GoogleToken;
+		return null;
+	} catch {
+		// token illisible → traité comme « non connecté », sans planter ni écraser
+		return null;
+	}
+}
+
+export function saveToken(token: GoogleToken): void {
+	const dir = brainDir();
+	mkdirSync(dir, {recursive: true});
+	const tmp = join(dir, `${TOKEN_FILE}.tmp-${process.pid}`);
+	writeFileSync(tmp, JSON.stringify(token, null, 2), {mode: 0o600});
+	const dest = join(dir, TOKEN_FILE);
+	renameSync(tmp, dest); // atomique sur le même volume
+	chmodSync(dest, 0o600);
+}
+
+export function clearToken(): void {
+	const path = join(brainDir(), TOKEN_FILE);
+	if (existsSync(path)) rmSync(path);
 }
