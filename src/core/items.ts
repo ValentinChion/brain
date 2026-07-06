@@ -1,7 +1,12 @@
 import {randomUUID} from 'node:crypto';
 import type {Item} from './types.ts';
 
-export function addItem(items: Item[], text: string, nowISO: string): Item[] {
+export function addItem(
+	items: Item[],
+	text: string,
+	nowISO: string,
+	source?: string,
+): Item[] {
 	const item: Item = {
 		id: randomUUID(),
 		text,
@@ -9,6 +14,7 @@ export function addItem(items: Item[], text: string, nowISO: string): Item[] {
 		remindOn: null,
 		done: false,
 		doneAt: null,
+		...(source ? {source} : {}),
 	};
 	return [...items, item];
 }

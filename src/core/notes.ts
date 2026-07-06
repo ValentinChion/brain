@@ -2,8 +2,22 @@ import {randomUUID} from 'node:crypto';
 import type {Note} from './types.ts';
 import {todayYMD, addDays} from './date.ts';
 
-export function addNote(notes: Note[], text: string, nowISO: string): Note[] {
-	return [...notes, {id: randomUUID(), text, createdAt: nowISO, pinned: false}];
+export function addNote(
+	notes: Note[],
+	text: string,
+	nowISO: string,
+	source?: string,
+): Note[] {
+	return [
+		...notes,
+		{
+			id: randomUUID(),
+			text,
+			createdAt: nowISO,
+			pinned: false,
+			...(source ? {source} : {}),
+		},
+	];
 }
 
 const patch = (notes: Note[], id: string, fn: (n: Note) => Note): Note[] =>

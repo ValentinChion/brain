@@ -90,3 +90,10 @@ test('staleNotes / sweepStale sont cohérents (candidats vs survivants)', () => 
 		['oldPinned', 'fresh'],
 	);
 });
+
+test("addNote pose source quand fourni, l'omet sinon", () => {
+	const withSrc = addNote([], 'n', '2026-07-06T10:00:00Z', 'Sprint review');
+	assert.equal(withSrc[0].source, 'Sprint review');
+	const without = addNote([], 'n', '2026-07-06T10:00:00Z');
+	assert.equal('source' in without[0], false);
+});

@@ -5,6 +5,7 @@ export type Item = {
 	remindOn: string | null; // "AAAA-MM-JJ" ou null
 	done: boolean;
 	doneAt: string | null; // ISO 8601, quand cochée
+	source?: string;
 };
 
 export type Note = {
@@ -12,6 +13,7 @@ export type Note = {
 	text: string; // peut contenir des "\n"
 	createdAt: string; // ISO 8601 — base de la péremption
 	pinned: boolean;
+	source?: string;
 };
 
 export type GoogleToken = {

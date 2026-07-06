@@ -60,3 +60,10 @@ test('removeItem retire la bonne ligne', () => {
 	assert.equal(after.length, 1);
 	assert.equal(after[0].text, 'seconde');
 });
+
+test("addItem pose source quand fourni, l'omet sinon", () => {
+	const withSrc = addItem([], 'a', '2026-07-06T10:00:00Z', 'Sprint review');
+	assert.equal(withSrc[0].source, 'Sprint review');
+	const without = addItem([], 'a', '2026-07-06T10:00:00Z');
+	assert.equal('source' in without[0], false);
+});
