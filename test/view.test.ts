@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Item} from '../src/types.ts';
-import {isDue, buildView, windowView} from '../src/view.ts';
+import type {Item} from '../src/core/types.ts';
+import {isDue, buildView, windowView} from '../src/core/view.ts';
 
 const mk = (over: Partial<Item>): Item => ({
 	id: over.id ?? 'id',

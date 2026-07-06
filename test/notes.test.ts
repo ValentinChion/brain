@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Note} from '../src/types.ts';
+import type {Note} from '../src/core/types.ts';
 import {
 	addNote,
 	editNote,
@@ -10,7 +10,7 @@ import {
 	isStale,
 	staleNotes,
 	sweepStale,
-} from '../src/notes.ts';
+} from '../src/core/notes.ts';
 
 const NOW = '2026-07-03T10:00:00.000Z';
 const mk = (over: Partial<Note>): Note => ({

@@ -1,13 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Item} from '../src/types.ts';
+import type {Item} from '../src/core/types.ts';
 import {
 	addItem,
 	editText,
 	setDone,
 	setReminder,
 	removeItem,
-} from '../src/items.ts';
+} from '../src/core/items.ts';
 
 const NOW = '2026-07-02T10:00:00.000Z';
 const base: Item = {

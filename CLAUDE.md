@@ -31,7 +31,7 @@ The entry point is `src/cli.tsx` (`bin` in package.json), run directly by `tsx` 
 - `.tsx` = `useState` + `useInput` + JSX that calls those pure functions.
 - If a piece of logic needs a test, it belongs in a pure module, not the component.
 
-Other load-bearing points from the standard: one active `useInput` per responsibility (gate others with `isActive`); use `ink-text-input` with `focus={false}` so an input field doesn't steal navigation keys; exit via `useApp().exit()`, never `process.exit()`; wrap every string in `<Text>`; use `<Static>` for accumulating log-style output.
+Other load-bearing points from the standard: one active `useInput` per responsibility (gate others with `isActive`); both input fields use the in-house `MultilineInput` (cursor + inline editing, kitty keyboard protocol while focused) with `focus={false}` so a field doesn't steal navigation keys — its editing logic lives in the pure `multiline.ts` (`decodeKey`/`applyEdit`); exit via `useApp().exit()`, never `process.exit()`; wrap every string in `<Text>`; use `<Static>` for accumulating log-style output.
 
 ## Testing
 

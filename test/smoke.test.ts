@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import type {Item} from '../src/types.ts';
+import type {Item} from '../src/core/types.ts';
 
 test('le type Item se compile et un objet valide est bien formé', () => {
 	const item: Item = {

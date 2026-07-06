@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {todayYMD, addDays, stepReminder} from '../src/date.ts';
+import {todayYMD, addDays, stepReminder} from '../src/core/date.ts';
 
 test('todayYMD formate une date locale en AAAA-MM-JJ', () => {
 	assert.equal(todayYMD(new Date(2026, 6, 2)), '2026-07-02'); // mois 6 = juillet
