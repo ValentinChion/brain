@@ -17,3 +17,7 @@ test('parseCommand : non-commandes → null (restent du contenu)', () => {
 	assert.equal(parseCommand('/deploy staging'), null); // non enregistrée
 	assert.equal(parseCommand(''), null);
 });
+
+test('parseCommand : /debrief reconnu', () => {
+	assert.deepEqual(parseCommand('/debrief'), {name: 'debrief', args: []});
+});
