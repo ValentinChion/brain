@@ -25,6 +25,12 @@ export default function Row({
 					{item.remindOn.slice(5)}
 				</Text>
 			)}
+			{item.source && (
+				<Text dimColor>
+					{'  '}
+					{glyph.bullet} {item.source}
+				</Text>
+			)}
 		</Text>
 	);
 }

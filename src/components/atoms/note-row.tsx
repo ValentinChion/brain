@@ -24,6 +24,12 @@ export default function NoteRow({
 					{glyph.multiline} +{extra}
 				</Text>
 			)}
+			{note.source && (
+				<Text dimColor>
+					{'  '}
+					{glyph.bullet} {note.source}
+				</Text>
+			)}
 		</Text>
 	);
 }
