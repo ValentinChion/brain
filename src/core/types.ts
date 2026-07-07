@@ -16,11 +16,14 @@ export type Note = {
 	source?: string;
 };
 
-export type GoogleToken = {
+export type OAuthToken = {
 	refreshToken: string;
 	accessToken: string;
 	expiresAt: string; // ISO 8601
 };
+
+// alias historique — google-auth/google-client l'importent déjà
+export type GoogleToken = OAuthToken;
 
 export type Meeting = {
 	id: string;

@@ -9,7 +9,7 @@ import {
 	chmodSync,
 	rmSync,
 } from 'node:fs';
-import type {Item, Note, GoogleToken} from './types.ts';
+import type {Item, Note, OAuthToken} from './types.ts';
 
 // défaut : `~/.brain` (dossier maison) → même emplacement quel que soit le mode
 // de lancement (dev, `npm link`, install globale). Surchargeable via BRAIN_DIR
@@ -63,17 +63,15 @@ export function saveNotes(notes: Note[]): void {
 	saveArray('notes.json', notes);
 }
 
-// token OAuth Google — fichier séparé, permissions restreintes (chmod 600)
-const TOKEN_FILE = 'google-token.json';
-
-export function loadToken(): GoogleToken | null {
-	const path = join(brainDir(), TOKEN_FILE);
+// tokens OAuth (Google, Azure) — un fichier chacun, permissions restreintes (chmod 600)
+function loadTokenFile(file: string): OAuthToken | null {
+	const path = join(brainDir(), file);
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(
 			readFileSync(path, 'utf8'),
-		) as Partial<GoogleToken>;
-		if (typeof parsed.refreshToken === 'string') return parsed as GoogleToken;
+		) as Partial<OAuthToken>;
+		if (typeof parsed.refreshToken === 'string') return parsed as OAuthToken;
 		return null;
 	} catch {
 		// token illisible → traité comme « non connecté », sans planter ni écraser
@@ -81,20 +79,42 @@ export function loadToken(): GoogleToken | null {
 	}
 }
 
-export function saveToken(token: GoogleToken): void {
+function saveTokenFile(file: string, token: OAuthToken): void {
 	const dir = brainDir();
 	mkdirSync(dir, {recursive: true});
-	const tmp = join(dir, `${TOKEN_FILE}.tmp-${process.pid}`);
+	const tmp = join(dir, `${file}.tmp-${process.pid}`);
 	writeFileSync(tmp, JSON.stringify(token, null, 2), {mode: 0o600});
-	const dest = join(dir, TOKEN_FILE);
+	const dest = join(dir, file);
 	renameSync(tmp, dest); // atomique sur le même volume
 	chmodSync(dest, 0o600);
 }
 
-export function clearToken(): void {
-	const path = join(brainDir(), TOKEN_FILE);
+function clearTokenFile(file: string): void {
+	const path = join(brainDir(), file);
 	if (existsSync(path)) rmSync(path);
 }
+
+// Google — signatures inchangées
+export const loadToken = (): OAuthToken | null =>
+	loadTokenFile('google-token.json');
+export const saveToken = (token: OAuthToken): void => {
+	saveTokenFile('google-token.json', token);
+};
+
+export const clearToken = (): void => {
+	clearTokenFile('google-token.json');
+};
+
+// Azure DevOps
+export const loadAzureToken = (): OAuthToken | null =>
+	loadTokenFile('azure-token.json');
+export const saveAzureToken = (token: OAuthToken): void => {
+	saveTokenFile('azure-token.json', token);
+};
+
+export const clearAzureToken = (): void => {
+	clearTokenFile('azure-token.json');
+};
 
 // ids des réunions déjà débriefées/skippées (anti re-déclenchement)
 export function loadHandled(): string[] {

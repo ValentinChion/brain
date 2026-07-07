@@ -104,3 +104,33 @@ test('loadHandled : [] si absent ou corrompu', async () => {
 		assert.deepEqual(loadHandled(), []);
 	});
 });
+
+test('saveAzureToken puis loadAzureToken : aller-retour, fichier séparé', async () => {
+	await withDir(async dir => {
+		const {saveAzureToken, loadAzureToken} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		const token = {
+			refreshToken: 'r',
+			accessToken: 'a',
+			expiresAt: '2026-07-07T00:00:00.000Z',
+		};
+		saveAzureToken(token);
+		assert.ok(existsSync(join(dir, 'azure-token.json')));
+		assert.deepEqual(loadAzureToken(), token);
+	});
+});
+
+test('loadAzureToken : null si absent ou corrompu ; clearAzureToken supprime', async () => {
+	await withDir(async dir => {
+		const {loadAzureToken, saveAzureToken, clearAzureToken} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		assert.equal(loadAzureToken(), null);
+		writeFileSync(join(dir, 'azure-token.json'), '{ pas du json');
+		assert.equal(loadAzureToken(), null);
+		saveAzureToken({refreshToken: 'r', accessToken: 'a', expiresAt: 'x'});
+		clearAzureToken();
+		assert.equal(loadAzureToken(), null);
+	});
+});
