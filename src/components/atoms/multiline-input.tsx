@@ -1,6 +1,11 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Text, useInput, useStdout} from 'ink';
-import {decodeKey, applyEdit} from '../../core/multiline.ts';
+import {
+	decodeKey,
+	applyEdit,
+	atFirstLine,
+	atLastLine,
+} from '../../core/multiline.ts';
 
 // Protocole clavier kitty (Ghostty) : « désambigue » les touches pour que
 // Shift+Entrée arrive distinct (CSI 13;2u) au lieu d'être confondu avec Entrée,
@@ -17,6 +22,7 @@ type Props = {
 	onCancel: () => void;
 	focus?: boolean;
 	placeholder?: string;
+	onExitUp?: () => void;
 };
 
 export default function MultilineInput({
@@ -26,6 +32,7 @@ export default function MultilineInput({
 	onCancel,
 	focus = true,
 	placeholder = '',
+	onExitUp,
 }: Props) {
 	const {stdout} = useStdout();
 	const [cursor, setCursor] = useState(value.length);
@@ -63,6 +70,15 @@ export default function MultilineInput({
 			}
 
 			if (action.type === 'ignore') return;
+
+			if (action.type === 'move' && action.unit === 'vertical') {
+				if (action.dir === 'up' && atFirstLine(value, cursor)) {
+					onExitUp?.();
+					return;
+				}
+
+				if (action.dir === 'down' && atLastLine(value, cursor)) return;
+			}
 
 			const next = applyEdit(value, cursor, action);
 			setCursor(next.cursor);

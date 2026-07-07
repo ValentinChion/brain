@@ -323,13 +323,7 @@ export default function App() {
 	useInput(
 		(input, key) => {
 			if (mode === 'input') {
-				// seule touche gérée ici en saisie : ↑ sort de la barre vers la nav (draft conservé)
-				if (key.upArrow && visible.length > 0) {
-					setSelected(visible.length - 1); // dernière ligne active
-					setMode('nav');
-				}
-
-				return; // tout le reste de la frappe est géré par le MultilineInput focus
+				return; // toute la frappe (dont ↑/↓) est gérée par le MultilineInput focus
 			}
 
 			if (mode === 'reminder') {
@@ -384,17 +378,6 @@ export default function App() {
 			}
 		},
 		{isActive: world === 'tasks' && !blocked},
-	);
-
-	// --- Monde NOTES : ↑ sort de la barre vers la nav (draft conservé) ---
-	useInput(
-		(input, key) => {
-			if (key.upArrow && noteList.length > 0) {
-				setNoteSelected(noteList.length - 1);
-				setMode('nav');
-			}
-		},
-		{isActive: world === 'notes' && mode === 'input' && !blocked},
 	);
 
 	// --- Monde NOTES : navigation (p épingler, e éditer, d suppr) ---
@@ -522,6 +505,20 @@ export default function App() {
 		setMode('nav');
 	};
 
+	const exitToTaskNav = () => {
+		if (visible.length > 0) {
+			setSelected(visible.length - 1);
+			setMode('nav');
+		}
+	};
+
+	const exitToNoteNav = () => {
+		if (noteList.length > 0) {
+			setNoteSelected(noteList.length - 1);
+			setMode('nav');
+		}
+	};
+
 	if (sweeping) {
 		return (
 			<SweepView
@@ -588,6 +585,7 @@ export default function App() {
 				placeholder="capturer une tâche / un feedback…"
 				onChange={setDraft}
 				onSubmit={submitInput}
+				onExitUp={exitToTaskNav}
 			/>
 		) : (
 			<InputBar
@@ -599,6 +597,7 @@ export default function App() {
 				onChange={setNoteDraft}
 				onSubmit={submitNote}
 				onCancel={cancelNote}
+				onExitUp={exitToNoteNav}
 			/>
 		);
 
