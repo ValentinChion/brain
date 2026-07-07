@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {useInput, useStdout, useApp} from 'ink';
 import type {Item, Note, Meeting} from './core/types.ts';
 import {todayYMD, stepReminder} from './core/date.ts';
@@ -19,7 +19,16 @@ import {
 	staleNotes,
 	sweepStale,
 } from './core/notes.ts';
-import {load, save, loadNotes, saveNotes} from './core/storage.ts';
+import {
+	load,
+	save,
+	loadNotes,
+	saveNotes,
+	loadHandled,
+	saveHandled,
+} from './core/storage.ts';
+import {pendingDebriefs, linesToItems, pruneHandled} from './core/debrief.ts';
+import {notifyMeetingEnded} from './core/notify.ts';
 import {glyph, worldColor} from './core/theme.ts';
 import {parseCommand} from './core/commands.ts';
 import {isCtrlC} from './core/multiline.ts';
@@ -28,6 +37,7 @@ import TasksBody from './components/organisms/tasks-body.tsx';
 import NotesBody from './components/organisms/notes-body.tsx';
 import SweepView from './components/organisms/sweep-view.tsx';
 import ConnectPrompt from './components/organisms/connect-prompt.tsx';
+import DebriefView from './components/organisms/debrief-view.tsx';
 import InputBar from './components/molecules/input-bar.tsx';
 import ReminderStepper from './components/molecules/reminder-stepper.tsx';
 import HintBar from './components/molecules/hint-bar.tsx';
@@ -81,13 +91,45 @@ export default function App() {
 		() => !isConnected(),
 	);
 
-	// charge les réunions du jour dès que l'état passe à « connected »
+	// --- débrief de fin de réunion (v2) ---
+	const [handled, setHandled] = useState<string[]>(() => loadHandled());
+	const [debriefQueue, setDebriefQueue] = useState<Meeting[]>([]);
+	const [debriefPhase, setDebriefPhase] = useState<'actions' | 'infos'>(
+		'actions',
+	);
+	const [debriefDraft, setDebriefDraft] = useState('');
+
+	const handledRef = useRef(handled);
+	handledRef.current = handled;
+	const queueRef = useRef(debriefQueue);
+	queueRef.current = debriefQueue;
+
+	const markHandled = (id: string) => {
+		setHandled(prev => {
+			if (prev.includes(id)) return prev;
+			const next = [...prev, id];
+			saveHandled(next);
+			return next;
+		});
+	};
+
+	// charge les réunions du jour dès que l'état passe à « connected »,
+	// purge les ids obsolètes et amorce la file de débriefs en attente (rattrapage, pas de notif)
 	useEffect(() => {
 		if (connState !== 'connected') return;
 		let alive = true;
 		fetchTodaysEvents().then(
 			m => {
-				if (alive) setMeetings(m);
+				if (!alive) return;
+				setMeetings(m);
+				const todaysIds = m.map(x => x.id);
+				const pruned = pruneHandled(handledRef.current, todaysIds);
+				if (pruned.length !== handledRef.current.length) {
+					setHandled(pruned);
+					saveHandled(pruned);
+				}
+
+				setDebriefQueue(pendingDebriefs(m, nowISO(), pruned)); // rattrapage, pas de notif
 			},
 			(error: unknown) => {
 				if (!alive) return;
@@ -97,6 +139,31 @@ export default function App() {
 		);
 		return () => {
 			alive = false;
+		};
+	}, [connState]);
+
+	// --- sondage périodique : détecte les réunions qui viennent de se terminer ---
+	useEffect(() => {
+		if (connState !== 'connected') return;
+		const tick = async () => {
+			try {
+				const m = await fetchTodaysEvents();
+				setMeetings(m);
+				const pending = pendingDebriefs(m, nowISO(), handledRef.current);
+				const known = new Set(queueRef.current.map(x => x.id));
+				const fresh = pending.filter(p => !known.has(p.id));
+				if (fresh.length > 0) {
+					for (const f of fresh) notifyMeetingEnded(f.title); // ping live
+					setDebriefQueue(prev => [...prev, ...fresh]);
+				}
+			} catch {
+				// réseau : silencieux, retry au prochain tick
+			}
+		};
+
+		const id = setInterval(tick, 5 * 60 * 1000);
+		return () => {
+			clearInterval(id);
 		};
 	}, [connState]);
 
@@ -113,9 +180,59 @@ export default function App() {
 		}
 	};
 
-	// dispatch d'une commande de la barre (`/gauth`, …)
+	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, …)
 	const runCommand = (name: string) => {
 		if (name === 'gauth') void runConnect();
+		if (name === 'debrief') runDebrief();
+	};
+
+	const head = debriefQueue[0];
+
+	const advanceDebrief = () => {
+		setDebriefPhase('actions');
+		setDebriefDraft('');
+		setDebriefQueue(prev => prev.slice(1));
+	};
+
+	const submitDebrief = (value: string) => {
+		if (!head) return;
+		const lines = linesToItems(value);
+		if (debriefPhase === 'actions') {
+			if (lines.length > 0) {
+				let next = items;
+				for (const l of lines) next = addItem(next, l, nowISO(), head.title);
+				commit(next);
+			}
+
+			setDebriefPhase('infos');
+			setDebriefDraft('');
+			return;
+		}
+
+		if (lines.length > 0) {
+			let next = notes;
+			for (const l of lines) next = addNote(next, l, nowISO(), head.title);
+			commitNotes(next);
+		}
+
+		markHandled(head.id);
+		advanceDebrief();
+	};
+
+	const skipDebrief = () => {
+		if (head) markHandled(head.id);
+		advanceDebrief();
+	};
+
+	const runDebrief = () => {
+		const now = new Date(nowISO()).getTime();
+		const last = meetings
+			.filter(m => m.debriefable && new Date(m.end).getTime() <= now)
+			.sort((a, b) => new Date(b.end).getTime() - new Date(a.end).getTime())[0];
+		if (!last) return;
+		setDebriefPhase('actions');
+		setDebriefDraft('');
+		setDebriefQueue(prev => [last, ...prev.filter(m => m.id !== last.id)]);
 	};
 
 	const {stdout} = useStdout();
@@ -174,7 +291,7 @@ export default function App() {
 		saveNotes(next);
 	};
 
-	const blocked = sweeping || connectPromptOpen;
+	const blocked = sweeping || connectPromptOpen || debriefQueue.length > 0;
 
 	// --- Prompt de connexion agenda au démarrage (s'affiche après le ménage) ---
 	useInput(
@@ -412,6 +529,20 @@ export default function App() {
 
 	if (connectPromptOpen) {
 		return <ConnectPrompt loadError={loadError} />;
+	}
+
+	if (head) {
+		return (
+			<DebriefView
+				meeting={head}
+				phase={debriefPhase}
+				remaining={debriefQueue.length}
+				draft={debriefDraft}
+				onChange={setDebriefDraft}
+				onSubmit={submitDebrief}
+				onSkip={skipDebrief}
+			/>
+		);
 	}
 
 	const body =
