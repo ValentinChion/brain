@@ -16,6 +16,7 @@ export type KeyAction =
 	| {type: 'submit'}
 	| {type: 'cancel'}
 	| {type: 'backspace'}
+	| {type: 'delete'; unit: 'word' | 'line'}
 	| {type: 'insert'; text: string}
 	| {type: 'move'; unit: 'char' | 'word' | 'line'; dir: 'left' | 'right'}
 	| {type: 'ignore'};
@@ -77,6 +78,20 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 	if (input === '[13;2u') return {type: 'newline'}; // Shift+Entrée (kitty)
 	if (ret) return {type: 'submit'}; // Entrée
 	if (esc || input === '[27u') return {type: 'cancel'}; // Échap (kitty → [27u)
+
+	// suppression par mot / ligne (Backspace modifié) — AVANT le backspace simple.
+	// ⚠️ séquences kitty à confirmer par capture : Option=3, Ctrl=5, Cmd/Super=9.
+	if (
+		(meta && back) ||
+		(ctrl && back) ||
+		input === '[127;3u' ||
+		input === '[127;5u'
+	) {
+		return {type: 'delete', unit: 'word'};
+	}
+
+	if (input === '[127;9u') return {type: 'delete', unit: 'line'};
+
 	if (back) return {type: 'backspace'};
 
 	// --- déplacements : ligne (le plus spécifique) → mot → caractère ---
@@ -188,6 +203,12 @@ export function applyEdit(
 
 		case 'move': {
 			return {value, cursor: moveCursor(value, c, action.unit, action.dir)};
+		}
+
+		case 'delete': {
+			const from =
+				action.unit === 'word' ? wordLeft(value, c) : lineStart(value, c);
+			return {value: value.slice(0, from) + value.slice(c), cursor: from};
 		}
 
 		default: {

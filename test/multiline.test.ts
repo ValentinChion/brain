@@ -176,3 +176,34 @@ test('applyEdit : déplacement caractère borné [0, len]', () => {
 		2,
 	);
 });
+
+test('decodeKey : suppression mot (Option/Ctrl+Backspace) et ligne (Cmd+Backspace)', () => {
+	assert.deepEqual(decodeKey('', {meta: true, backspace: true}), {
+		type: 'delete',
+		unit: 'word',
+	});
+	assert.deepEqual(decodeKey('', {ctrl: true, backspace: true}), {
+		type: 'delete',
+		unit: 'word',
+	});
+	assert.deepEqual(decodeKey('[127;3u', {}), {type: 'delete', unit: 'word'});
+	assert.deepEqual(decodeKey('[127;9u', {}), {type: 'delete', unit: 'line'});
+	assert.deepEqual(decodeKey('', {backspace: true}), {type: 'backspace'}); // simple inchangé
+});
+
+test('applyEdit : delete word / line (arrière)', () => {
+	assert.deepEqual(
+		applyEdit('foo bar baz', 11, {type: 'delete', unit: 'word'}),
+		{
+			value: 'foo bar ',
+			cursor: 8,
+		},
+	);
+	assert.deepEqual(
+		applyEdit('abc\ndef ghi', 11, {type: 'delete', unit: 'line'}),
+		{
+			value: 'abc\n',
+			cursor: 4,
+		},
+	);
+});
