@@ -10,7 +10,7 @@ Two "worlds" in one panel, toggled with `Tab`: **tasks** (capture + arrow-key re
 
 ### Modules
 
-Pure, tested (`node:test`): `date.ts` (`todayYMD`/`addDays`/`stepReminder`), `view.ts` (`buildView`/`isDue`/`windowView`), `items.ts` (task ops), `notes.ts` (note ops: pin/sort/staleness/sweep), `storage.ts` (atomic JSON for `tasks.json` + `notes.json`), `multiline.ts` (`decodeKey` — kitty-aware key→action). Ink layer (not unit-tested): `app.tsx` (both worlds, `isActive`-gated `useInput` per responsibility), `multiline-input.tsx` (multi-line note field; enables the kitty keyboard protocol while focused so `Shift+Enter` = newline), `cli.tsx`.
+Pure, tested (`node:test`): `date.ts` (`todayYMD`/`addDays`/`stepReminder`), `view.ts` (`buildView`/`isDue`/`windowView`), `items.ts` (task ops), `notes.ts` (note ops: pin/sort/staleness/sweep), `storage.ts` (atomic JSON for `tasks.json` + `notes.json`), `multiline.ts` (`decodeKey` — kitty-aware key→action), `forge.ts` (PR shaping), `azure-auth.ts` (device-code flow), `azure-config.ts` (org/project config). I/O-not-unit-tested: `azure-client.ts` (ADO REST API client). Ink layer (not unit-tested): `app.tsx` (both worlds, `isActive`-gated `useInput` per responsibility), `multiline-input.tsx` (multi-line note field; enables the kitty keyboard protocol while focused so `Shift+Enter` = newline), `pr-section.tsx` (PR mirror display), `cli.tsx`.
 
 ## Commands
 
