@@ -1,92 +1,90 @@
 # 🧠 brain
 
-Panneau todo TUI qui reste ouvert dans un split, pour ne plus rien oublier.
-Capture sans friction (barre de saisie toujours prête) ; rappel par présence
-permanente + surlignage de ce qui « ressort » aujourd'hui.
+> An always-on terminal panel for tasks and notes. Keep it open in a split, type, forget nothing.
 
-## Lancer
+`brain` is a TUI capture pad designed to sit in a terminal split all day. The input bar is always ready: type a thought, hit `Enter`, get back to work. Tasks with reminders resurface on the right day; notes wait quietly until you need them — or get swept when they go stale.
+
+- **Zero-friction capture** — no app switch, no mouse, no save button.
+- **Reminders without a date picker** — set a date with arrow keys in two seconds.
+- **Two worlds, one panel** — `Tab` switches between tasks and notes.
+- **Self-cleaning notes** — unpinned notes older than a week get flagged for a one-keystroke sweep at startup.
+- **Your data is a JSON file** — everything lives in `~/.brain/`, editable by hand.
+- **Zero runtime dependencies** — ships as a single self-contained bundle.
+
+## Install
 
 ```bash
-npm install
-npm start
-```
-
-## Installer la commande `brain` (globale)
-
-```bash
-npm link      # rend `brain` disponible dans le PATH
+npm install -g brain-tui
 brain
 ```
 
-## Usage dans Ghostty
+Requires Node.js ≥ 20.
 
-Ouvrir un split dédié et y lancer `brain` — le laisser ouvert toute la journée :
+## Usage
 
-- **Cmd-D** (split vertical) ou **Cmd-Shift-D** (horizontal) dans Ghostty
-- dans le nouveau pane : `brain`
+Run `brain` in a dedicated split (e.g. `Cmd-D` in Ghostty) and leave it open. The bottom bar captures immediately; press `↑` to enter navigation mode.
 
-> Un seul panneau à la fois : ne lance pas `brain` dans deux splits en même temps, ils
-> écraseraient le même fichier (last-writer-wins).
+> Run only one instance at a time — two panels would overwrite the same file (last writer wins).
 
-## Raccourcis
+### Tasks
 
-- Barre du bas (par défaut) : taper + `Entrée` pour capturer. `↑` pour naviguer.
-- En navigation : `↑/↓` bouger · `Espace` fait · `r` rappel · `e` éditer · `d` supprimer · `Échap` retour saisie.
-- Rappel (`r`) : curseur de date aux flèches — `←/→` ±1 jour · `↑/↓` ±1 semaine · `⌫` retirer · `↵` valider · `Échap` annuler. Plancher : aujourd'hui (pas de rappel dans le passé).
+| Key            | Action                |
+| -------------- | --------------------- |
+| type + `Enter` | Capture a task        |
+| `↑` / `↓`      | Navigate the list     |
+| `Space`        | Mark done             |
+| `r`            | Set a reminder        |
+| `e` / `d`      | Edit / delete         |
+| `Esc`          | Back to the input bar |
 
-## Notes
+Setting a reminder (`r`) opens an arrow-key date stepper: `←` / `→` ±1 day, `↑` / `↓` ±1 week, `Backspace` clears, `Enter` confirms. The floor is today — no reminders in the past. Tasks due today are highlighted so they resurface on their own.
 
-`brain` a deux « mondes » dans le même panneau. **`Tab`** bascule de l'un à
-l'autre (la liste **et** la barre de saisie) :
+### Notes
 
-- **Tâches** (défaut) : ce qui précède.
-- **Notes** : ce que tu veux garder pour plus tard (une commande, un lien, une
-  idée) — pas une tâche, ça ne se coche pas.
+Press `Tab` to switch worlds. Notes are for things you want to keep — a command, a link, an idea — not things you check off.
 
-Dans le monde notes :
+| Key            | Action                                        |
+| -------------- | --------------------------------------------- |
+| type + `Enter` | Capture a note                                |
+| `Shift+Enter`  | Insert a newline (multi-line note)            |
+| `p`            | Pin — moves to the top (📌) and never expires |
+| `e` / `d`      | Edit / delete                                 |
+| `Tab`          | Back to tasks                                 |
 
-- Barre du bas : taper + `Entrée` pour capturer. `Shift+Entrée` insère un saut
-  de ligne (note multi-ligne). `↑` pour naviguer.
-- En navigation : `↑/↓` bouger · `p` épingler · `e` éditer · `d` supprimer ·
-  `Échap` retour saisie · `Tab` revenir aux tâches.
+> `Shift+Enter` relies on the kitty keyboard protocol (Ghostty, kitty, WezTerm). Elsewhere it degrades to a plain `Enter` — single-line notes, nothing breaks.
 
-> `Shift+Entrée` s'appuie sur le _kitty keyboard protocol_ de **Ghostty**.
-> Ailleurs, il se comporte comme `Entrée` (note mono-ligne) — dégradé, pas cassé.
+**Stale-note sweep** — an unpinned note older than a week becomes a cleanup candidate. At startup, `brain` lists candidates and asks: `d` delete all · `k` keep all · `r` review one by one. Nothing to do day to day.
 
-### Garder / nettoyer sans corvée
+## Google Calendar (optional)
 
-- **Épingler** (`p`) : la note remonte en tête (📌) et **n'expire jamais**.
-- Une note non épinglée de **plus d'une semaine** devient candidate au ménage.
-- **Au démarrage**, s'il y a des candidates, `brain` les liste et demande :
-  `[d]` tout supprimer · `[k]` tout garder · `[r]` passer en revue une par une.
-  Rien à faire au quotidien.
+`brain` can show today's meetings in a status line. It reads your calendar — nothing more (`calendar.events.readonly`).
 
-## Agenda Google (v1)
+1. Create an OAuth "Desktop app" client in Google Cloud Console with the Calendar API enabled.
+2. Put its credentials in `~/.brain/google-config.json`:
 
-`brain` peut lire ton agenda Google pour afficher les réunions du jour — socle
-des futures relances de fin de réunion.
+   ```json
+   {"clientId": "…", "clientSecret": "…"}
+   ```
 
-**Prérequis** — un client OAuth « Application de bureau » (Google Cloud Console,
-API Calendar activée, scope `calendar.events.readonly`). Dépose ses identifiants
-dans `~/.brain/google-config.json` (hors dépôt, jamais committé) :
+   (or set `BRAIN_GOOGLE_CLIENT_ID` / `BRAIN_GOOGLE_CLIENT_SECRET`.)
 
-```json
-{"clientId": "…", "clientSecret": "…"}
+3. On startup, press `o` to authorize in the browser. Re-run anytime by typing `/gauth` in the input bar.
+
+The refresh token is stored in `~/.brain/google-token.json` (mode `600`). Only known `/` commands are intercepted — typing `/etc/hosts` still saves a normal note.
+
+## Data
+
+Plain JSON in `~/.brain/tasks.json` and `~/.brain/notes.json`. Completed tasks are hidden but kept; swept notes are gone for good.
+
+## Development
+
+```bash
+git clone <repo> && cd brain
+npm install
+npm start   # run from source via tsx, no build step
+npm test    # prettier + xo + node:test
 ```
 
-(ou via les variables d'env `BRAIN_GOOGLE_CLIENT_ID` / `BRAIN_GOOGLE_CLIENT_SECRET`.)
+## License
 
-**Connexion** — au démarrage, si non connecté, `brain` propose `[o]` pour lancer
-l'autorisation (ouvre le navigateur). Rejouable à tout moment en tapant **`/gauth`**
-dans la barre de saisie (n'importe quel monde) — utile pour reconnecter / changer
-de compte. Le refresh token est stocké dans `~/.brain/google-token.json`
-(permissions `600`). Une ligne de statut affiche les réunions du jour.
-
-> Les commandes commencent par `/` : `brain` n'exécute que les commandes connues
-> (`/gauth`). Un texte comme `/etc/hosts` reste une note normale.
-
-## Données
-
-Fichiers locaux `~/.brain/tasks.json` et `~/.brain/notes.json` (éditables à la
-main). Les tâches faites sont masquées mais conservées (pour d'éventuelles
-stats) ; les notes supprimées au ménage sont retirées pour de bon.
+MIT

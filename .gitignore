@@ -2,3 +2,5 @@ node_modules/
 dist/
 .superpowers/
 .brain/
+
+/.DS_Store
