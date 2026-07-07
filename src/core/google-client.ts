@@ -34,8 +34,9 @@ export function isConnected(): boolean {
 	return loadToken() !== null;
 }
 
-function openBrowser(url: string): void {
+export function openBrowser(url: string): void {
 	// macOS : `open`. Si indisponible, on avale l'erreur (le flux expirera).
+	// Partagé avec le flux Azure.
 	const child = spawn('open', [url], {stdio: 'ignore', detached: true});
 	child.on('error', () => undefined);
 	child.unref();

@@ -1,0 +1,175 @@
+// Couche I/O Azure DevOps : flux device-code, refresh silencieux, lecture des
+// PRs « action requise ». S'appuie sur les fonctions pures de azure-auth.ts
+// (corps de requêtes) et forge.ts (normalisation).
+
+import {setTimeout as delay} from 'node:timers/promises';
+import type {OAuthToken} from './types.ts';
+import {
+	DEVICE_CODE_ENDPOINT,
+	AZURE_TOKEN_ENDPOINT,
+	buildDeviceCodeBody,
+	parseDeviceCode,
+	buildDeviceTokenBody,
+	buildAzureRefreshBody,
+	type DeviceCode,
+	type RawDeviceCode,
+} from './azure-auth.ts';
+import {
+	parseTokenResponse,
+	isExpired,
+	type RawTokenResponse,
+} from './google-auth.ts';
+import {loadAzureToken, saveAzureToken, clearAzureToken} from './storage.ts';
+import {loadAzureConfig} from './azure-config.ts';
+import {shapePullRequests, type RawPullRequest, type PrItem} from './forge.ts';
+
+const FORM = {'Content-Type': 'application/x-www-form-urlencoded'};
+const nowISO = (): string => new Date().toISOString();
+
+export function isAzureConnected(): boolean {
+	return loadAzureToken() !== null;
+}
+
+export async function requestDeviceCode(): Promise<DeviceCode> {
+	const res = await fetch(DEVICE_CODE_ENDPOINT, {
+		method: 'POST',
+		headers: FORM,
+		body: buildDeviceCodeBody(),
+	});
+	if (!res.ok) throw new Error(`device-code refusé (${res.status})`);
+	return parseDeviceCode((await res.json()) as RawDeviceCode);
+}
+
+// poll le token endpoint jusqu'à validation dans le navigateur (ou expiration).
+export async function pollDeviceToken(dc: DeviceCode): Promise<OAuthToken> {
+	const deadline = Date.now() + dc.expiresInMs;
+	let wait = dc.intervalMs;
+	while (Date.now() < deadline) {
+		// eslint-disable-next-line no-await-in-loop
+		await delay(wait);
+		// eslint-disable-next-line no-await-in-loop
+		const res = await fetch(AZURE_TOKEN_ENDPOINT, {
+			method: 'POST',
+			headers: FORM,
+			body: buildDeviceTokenBody(dc.deviceCode),
+		});
+		// eslint-disable-next-line no-await-in-loop
+		const json = (await res.json()) as RawTokenResponse & {error?: string};
+		if (res.ok) {
+			const token = parseTokenResponse(json, nowISO());
+			saveAzureToken(token);
+			return token;
+		}
+
+		if (json.error === 'slow_down') wait += 5000;
+		else if (json.error !== 'authorization_pending') {
+			throw new Error(`autorisation refusée (${json.error ?? res.status})`);
+		}
+	}
+
+	throw new Error('code expiré — relance /azure');
+}
+
+async function ensureAccessToken(): Promise<string> {
+	const token = loadAzureToken();
+	if (!token) throw new Error('non connecté — /azure');
+	if (!isExpired(token, nowISO())) return token.accessToken;
+
+	let json: RawTokenResponse;
+	try {
+		const res = await fetch(AZURE_TOKEN_ENDPOINT, {
+			method: 'POST',
+			headers: FORM,
+			body: buildAzureRefreshBody(token.refreshToken),
+		});
+		if (!res.ok) throw new Error(String(res.status));
+		json = (await res.json()) as RawTokenResponse;
+	} catch {
+		clearAzureToken(); // refresh révoqué/expiré → repartir propre
+		throw new Error('session Azure expirée — reconnecte via /azure');
+	}
+
+	const next = parseTokenResponse(json, nowISO(), token.refreshToken);
+	saveAzureToken(next);
+	return next.accessToken;
+}
+
+async function get<T>(url: string, access: string): Promise<T> {
+	const res = await fetch(url, {
+		headers: {Authorization: `Bearer ${access}`},
+	});
+	if (!res.ok) throw new Error(`azure indisponible (${res.status})`);
+	return res.json() as Promise<T>;
+}
+
+// mon identité ADO — stable pour la durée du process, résolue une fois
+let cachedMyId: string | null = null;
+
+async function myId(base: string, access: string): Promise<string> {
+	if (cachedMyId) return cachedMyId;
+	const me = await get<{authenticatedUser?: {id?: string}}>(
+		`${base}/_apis/connectionData`,
+		access,
+	);
+	cachedMyId = me.authenticatedUser?.id ?? '';
+	return cachedMyId;
+}
+
+type PrList = {value?: RawPullRequest[]};
+type PolicyEvaluations = {
+	value?: Array<{
+		configuration?: {type?: {displayName?: string}};
+		status?: string;
+	}>;
+};
+
+// CI d'une de mes PRs : policy « Build » rejetée. Pas de policy build → inconnu, ignoré.
+async function ciFailed(
+	base: string,
+	access: string,
+	pr: RawPullRequest,
+): Promise<number | null> {
+	const projectId = pr.repository?.project?.id;
+	const id = pr.pullRequestId;
+	if (!projectId || !id) return null;
+	try {
+		const artifact = encodeURIComponent(
+			`vstfs:///CodeReview/CodeReviewId/${projectId}/${id}`,
+		);
+		const evals = await get<PolicyEvaluations>(
+			`${base}/${projectId}/_apis/policy/evaluations?artifactId=${artifact}&api-version=7.1-preview.1`,
+			access,
+		);
+		const failed = (evals.value ?? []).some(
+			e =>
+				e.configuration?.type?.displayName === 'Build' &&
+				e.status === 'rejected',
+		);
+		return failed ? id : null;
+	} catch {
+		return null; // droits manquants / pas de policy → statut CI inconnu
+	}
+}
+
+// PRs « action requise » : à reviewer + mes PRs actionnables (CI rouge incluse).
+export async function fetchActionablePrs(): Promise<PrItem[]> {
+	const cfg = loadAzureConfig();
+	if (!cfg) throw new Error('non configuré — /azure <org> <projet>');
+	const access = await ensureAccessToken();
+	const base = `https://dev.azure.com/${cfg.organization}`;
+	const me = await myId(base, access);
+	// ponytail: $top=200 — pagination le jour où un projet dépasse 200 PRs actives
+	const prs = await get<PrList>(
+		`${base}/${encodeURIComponent(
+			cfg.project,
+		)}/_apis/git/pullrequests?searchCriteria.status=active&$top=200&api-version=7.1`,
+		access,
+	);
+	const raw = prs.value ?? [];
+	const mine = raw.filter(pr => pr.createdBy?.id === me && !pr.isDraft);
+	const ciChecks = await Promise.all(
+		mine.map(async pr => ciFailed(base, access, pr)),
+	);
+	const ciFailedIds = ciChecks.filter((id): id is number => id !== null);
+	return shapePullRequests(raw, me, ciFailedIds);
+}
