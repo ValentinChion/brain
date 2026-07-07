@@ -1,5 +1,5 @@
-import {fileURLToPath} from 'node:url';
-import {dirname, join} from 'node:path';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {
 	existsSync,
 	mkdirSync,
@@ -11,18 +11,11 @@ import {
 } from 'node:fs';
 import type {Item, Note, GoogleToken} from './types.ts';
 
-// défaut : `<repo>/.brain`, résolu relativement au module (storage.ts est en
-// `<repo>/src/core/`) → fonctionne aussi quand `brain` est `npm link`é et lancé
-// depuis un autre dossier. Surchargeable via BRAIN_DIR.
-const REPO_BRAIN = join(
-	dirname(fileURLToPath(import.meta.url)),
-	'..',
-	'..',
-	'.brain',
-);
-
+// défaut : `~/.brain` (dossier maison) → même emplacement quel que soit le mode
+// de lancement (dev, `npm link`, install globale). Surchargeable via BRAIN_DIR
+// (ex. `BRAIN_DIR=$PWD/.brain npm start` pour des données locales au repo en dev).
 export function brainDir(): string {
-	return process.env.BRAIN_DIR ?? REPO_BRAIN;
+	return process.env.BRAIN_DIR ?? join(homedir(), '.brain');
 }
 
 // ponytail: cœur générique — même logique atomique + anti-corruption pour tasks.json et notes.json
