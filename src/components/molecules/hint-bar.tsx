@@ -7,7 +7,7 @@ export default function HintBar({
 	mode,
 }: {
 	world: 'tasks' | 'notes';
-	mode: 'input' | 'nav' | 'reminder';
+	mode: 'input' | 'nav' | 'reminder' | 'prnav';
 }) {
 	return <Text dimColor>{hint(world, mode)}</Text>;
 }

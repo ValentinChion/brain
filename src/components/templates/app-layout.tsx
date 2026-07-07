@@ -29,7 +29,11 @@ export default function AppLayout({
 			<Masthead accent={accent} label={label} />
 			<Box flexDirection="column" flexGrow={1} paddingX={1} paddingBottom={1}>
 				{loadError && <Text color={color.danger}>{loadError}</Text>}
-				{status && <Box marginBottom={1}>{status}</Box>}
+				{status && (
+					<Box flexDirection="column" marginBottom={1}>
+						{status}
+					</Box>
+				)}
 
 				{/* corps extensible : pousse la barre de saisie + hints tout en bas */}
 				<Box flexGrow={1} flexDirection="column">

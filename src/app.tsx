@@ -37,7 +37,21 @@ import {notifyMeetingEnded} from './core/notify.ts';
 import {glyph, worldColor} from './core/theme.ts';
 import {parseCommand} from './core/commands.ts';
 import {isCtrlC} from './core/multiline.ts';
-import {connect, fetchTodaysEvents, isConnected} from './core/google-client.ts';
+import {
+	connect,
+	fetchTodaysEvents,
+	isConnected,
+	openBrowser,
+} from './core/google-client.ts';
+import {
+	isAzureConnected,
+	requestDeviceCode,
+	pollDeviceToken,
+	fetchActionablePrs,
+} from './core/azure-client.ts';
+import {loadAzureConfig, saveAzureConfig} from './core/azure-config.ts';
+import type {PrItem} from './core/forge.ts';
+import PrSection, {type AzState} from './components/molecules/pr-section.tsx';
 import TasksBody from './components/organisms/tasks-body.tsx';
 import NotesBody from './components/organisms/notes-body.tsx';
 import SweepView from './components/organisms/sweep-view.tsx';
@@ -51,7 +65,7 @@ import AgendaStatus, {
 } from './components/molecules/agenda-status.tsx';
 import AppLayout from './components/templates/app-layout.tsx';
 
-type Mode = 'input' | 'nav' | 'reminder';
+type Mode = 'input' | 'nav' | 'reminder' | 'prnav';
 type World = 'tasks' | 'notes';
 
 const nowISO = () => new Date().toISOString();
@@ -103,6 +117,63 @@ export default function App() {
 		'actions',
 	);
 	const [debriefDraft, setDebriefDraft] = useState('');
+
+	// --- miroir PRs Azure DevOps (lecture seule, la forge est la vérité) ---
+	const [azState, setAzState] = useState<AzState>(() =>
+		isAzureConnected() && loadAzureConfig() ? 'connected' : 'off',
+	);
+	const [azCode, setAzCode] = useState<string | null>(null);
+	const [azError, setAzError] = useState<string | null>(null);
+	const [prs, setPrs] = useState<PrItem[]>([]);
+	const [prSelected, setPrSelected] = useState(0);
+
+	const refreshPrs = async () => {
+		try {
+			setPrs(await fetchActionablePrs());
+			setAzError(null);
+		} catch (error: unknown) {
+			// on garde les dernières données valides ; statut discret dans la section
+			setAzError(error instanceof Error ? error.message : String(error));
+		}
+	};
+
+	// sondage : immédiat à la connexion, puis toutes les 5 min (même cadence que l'agenda)
+	useEffect(() => {
+		if (azState !== 'connected') return;
+		void refreshPrs();
+		const id = setInterval(() => {
+			void refreshPrs();
+		}, 5 * 60 * 1000);
+		return () => {
+			clearInterval(id);
+		};
+	}, [azState]);
+
+	const runAzure = async (args: string[]) => {
+		if (args.length >= 2) {
+			saveAzureConfig({organization: args[0], project: args[1]});
+		}
+
+		if (!loadAzureConfig()) {
+			setAzState('error');
+			setAzError('usage : /azure <organisation> <projet>');
+			return;
+		}
+
+		try {
+			setAzError(null);
+			const dc = await requestDeviceCode();
+			setAzCode(`entre ${dc.userCode} sur ${dc.verificationUri}`);
+			setAzState('code');
+			await pollDeviceToken(dc);
+			setAzCode(null);
+			setAzState('connected'); // déclenche le sondage ci-dessus
+		} catch (error: unknown) {
+			setAzCode(null);
+			setAzState('error');
+			setAzError(error instanceof Error ? error.message : String(error));
+		}
+	};
 
 	const handledRef = useRef(handled);
 	handledRef.current = handled;
@@ -189,10 +260,12 @@ export default function App() {
 		}
 	};
 
-	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, …)
-	const runCommand = (name: string) => {
+	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, `/azure`, `/prs`)
+	const runCommand = (name: string, args: string[]) => {
 		if (name === 'gauth') void runConnect();
 		if (name === 'debrief') runDebrief();
+		if (name === 'azure') void runAzure(args);
+		if (name === 'prs') void refreshPrs();
 	};
 
 	const head = debriefQueue[0];
@@ -273,9 +346,16 @@ export default function App() {
 	const noteList = sortNotes(notes);
 	const noteSel = Math.min(noteSelected, Math.max(0, noteList.length - 1));
 
+	// lignes occupées par la section PRs (statut ou lignes de PR)
+	const prRows =
+		azState === 'off'
+			? 0
+			: azState === 'connected'
+			? prs.length + (azError ? 1 : 0)
+			: 1;
 	// fenêtre de scroll : hauteur du terminal moins le chrome (logo 4 lignes + marge, saisie, hints)
 	// ponytail: marge fixe de 11 lignes, ajuster si le chrome grossit
-	const rows = Math.max(1, termRows - 11);
+	const rows = Math.max(1, termRows - 11 - prRows);
 	const cols = stdout?.columns ?? 80;
 	// bannière signature « ressort aujourd'hui » : label + filet qui remplit la largeur
 	const dueLabel = ` ${glyph.moreUp} ressort aujourd'hui `;
@@ -357,7 +437,12 @@ export default function App() {
 					if (clampedSel >= visible.length - 1) setMode('input');
 					else setSelected(clampedSel + 1);
 				} else if (key.upArrow) {
-					setSelected(Math.max(0, clampedSel - 1));
+					if (clampedSel === 0 && prs.length > 0) {
+						setPrSelected(prs.length - 1);
+						setMode('prnav');
+					} else {
+						setSelected(Math.max(0, clampedSel - 1));
+					}
 				} else if (key.escape) {
 					setMode('input');
 				} else if (visible.length > 0) {
@@ -378,6 +463,29 @@ export default function App() {
 			}
 		},
 		{isActive: world === 'tasks' && !blocked},
+	);
+
+	// --- Navigation dans la section PRs (o/Entrée ouvre dans le navigateur) ---
+	useInput(
+		(input, key) => {
+			const clamped = Math.min(prSelected, Math.max(0, prs.length - 1));
+			if (key.escape || prs.length === 0) {
+				setMode('input');
+			} else if (key.downArrow) {
+				if (clamped >= prs.length - 1) {
+					setSelected(0);
+					setMode('nav');
+				} else {
+					setPrSelected(clamped + 1);
+				}
+			} else if (key.upArrow) {
+				setPrSelected(Math.max(0, clamped - 1));
+			} else if (input === 'o' || key.return) {
+				const target = prs[clamped];
+				if (target?.url) openBrowser(target.url);
+			}
+		},
+		{isActive: world === 'tasks' && mode === 'prnav' && !blocked},
 	);
 
 	// --- Monde NOTES : navigation (p épingler, e éditer, d suppr) ---
@@ -455,7 +563,7 @@ export default function App() {
 	const submitInput = (value: string) => {
 		const cmd = parseCommand(value);
 		if (cmd) {
-			runCommand(cmd.name);
+			runCommand(cmd.name, cmd.args);
 			setDraft('');
 			return;
 		}
@@ -480,7 +588,7 @@ export default function App() {
 	const submitNote = (value: string) => {
 		const cmd = parseCommand(value);
 		if (cmd) {
-			runCommand(cmd.name);
+			runCommand(cmd.name, cmd.args);
 			setNoteDraft('');
 			return;
 		}
@@ -608,12 +716,23 @@ export default function App() {
 			label={world === 'tasks' ? 'TÂCHES' : 'NOTES'}
 			loadError={loadError}
 			status={
-				<AgendaStatus
-					state={connState}
-					meetings={meetings}
-					nowISO={nowISO()}
-					error={connectError}
-				/>
+				<>
+					<AgendaStatus
+						state={connState}
+						meetings={meetings}
+						nowISO={nowISO()}
+						error={connectError}
+					/>
+					<PrSection
+						state={azState}
+						code={azCode}
+						error={azError}
+						prs={prs}
+						nowISO={nowISO()}
+						active={mode === 'prnav'}
+						selected={Math.min(prSelected, Math.max(0, prs.length - 1))}
+					/>
+				</>
 			}
 			body={body}
 			footer={footer}
