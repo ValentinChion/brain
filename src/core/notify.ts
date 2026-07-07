@@ -2,7 +2,10 @@
 import {spawn} from 'node:child_process';
 
 const escapeAppleScript = (s: string): string =>
-	s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+	s
+		.replace(/\\/g, '\\\\')
+		.replace(/"/g, '\\"')
+		.replace(/[\n\r]+/g, ' ');
 
 export function notifyScript(title: string): string {
 	const msg = escapeAppleScript(`${title} terminée — débrief ?`);

@@ -4,6 +4,7 @@ import {
 	pendingDebriefs,
 	linesToItems,
 	pruneHandled,
+	lastDebriefable,
 } from '../src/core/debrief.ts';
 
 const m = (id, end, debriefable = true) => ({
@@ -38,4 +39,15 @@ test('linesToItems : trim, ignore lignes vides', () => {
 
 test('pruneHandled : ne garde que les ids du jour', () => {
 	assert.deepEqual(pruneHandled(['a', 'old'], ['a', 'b']), ['a']);
+});
+
+test('lastDebriefable : dernière réunion terminée + debriefable, sinon null', () => {
+	const meetings = [
+		m('a', '2026-07-06T09:00:00Z'),
+		m('b', '2026-07-06T14:00:00Z'),
+		m('future', '2026-07-06T23:00:00Z'),
+		m('nondeb', '2026-07-06T08:00:00Z', false),
+	];
+	assert.equal(lastDebriefable(meetings, '2026-07-06T15:00:00Z')?.id, 'b');
+	assert.equal(lastDebriefable([], '2026-07-06T15:00:00Z'), null);
 });

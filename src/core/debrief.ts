@@ -29,3 +29,17 @@ export function pruneHandled(
 	const today = new Set(todaysIds);
 	return handled.filter(id => today.has(id));
 }
+
+export function lastDebriefable(
+	meetings: readonly Meeting[],
+	nowISO: string,
+): Meeting | null {
+	const now = new Date(nowISO).getTime();
+	return (
+		meetings
+			.filter(m => m.debriefable && new Date(m.end).getTime() <= now)
+			.sort(
+				(a, b) => new Date(b.end).getTime() - new Date(a.end).getTime(),
+			)[0] ?? null
+	);
+}

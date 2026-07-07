@@ -13,6 +13,7 @@ export default function DebriefView({
 	onChange,
 	onSubmit,
 	onSkip,
+	termRows,
 }: {
 	meeting: Meeting;
 	phase: 'actions' | 'infos';
@@ -21,12 +22,13 @@ export default function DebriefView({
 	onChange: (value: string) => void;
 	onSubmit: (value: string) => void;
 	onSkip: () => void;
+	termRows: number;
 }) {
 	const accent = phase === 'actions' ? color.task : color.note;
 	const question =
 		phase === 'actions' ? '✅ Actions à faire ?' : '📝 Infos à garder ?';
 	return (
-		<Box flexDirection="column">
+		<Box flexDirection="column" height={termRows}>
 			<Masthead accent={accent} label="DEBRIEF" />
 			<Box flexDirection="column" paddingX={1} paddingBottom={1}>
 				<Text color={accent}>

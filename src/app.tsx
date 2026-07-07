@@ -27,7 +27,12 @@ import {
 	loadHandled,
 	saveHandled,
 } from './core/storage.ts';
-import {pendingDebriefs, linesToItems, pruneHandled} from './core/debrief.ts';
+import {
+	pendingDebriefs,
+	linesToItems,
+	pruneHandled,
+	lastDebriefable,
+} from './core/debrief.ts';
 import {notifyMeetingEnded} from './core/notify.ts';
 import {glyph, worldColor} from './core/theme.ts';
 import {parseCommand} from './core/commands.ts';
@@ -103,6 +108,7 @@ export default function App() {
 	handledRef.current = handled;
 	const queueRef = useRef(debriefQueue);
 	queueRef.current = debriefQueue;
+	const caughtUp = useRef(false);
 
 	const markHandled = (id: string) => {
 		setHandled(prev => {
@@ -129,7 +135,10 @@ export default function App() {
 					saveHandled(pruned);
 				}
 
-				setDebriefQueue(pendingDebriefs(m, nowISO(), pruned)); // rattrapage, pas de notif
+				if (!caughtUp.current) {
+					caughtUp.current = true;
+					setDebriefQueue(pendingDebriefs(m, nowISO(), pruned)); // rattrapage : 1er passage seulement
+				}
 			},
 			(error: unknown) => {
 				if (!alive) return;
@@ -225,10 +234,7 @@ export default function App() {
 	};
 
 	const runDebrief = () => {
-		const now = new Date(nowISO()).getTime();
-		const last = meetings
-			.filter(m => m.debriefable && new Date(m.end).getTime() <= now)
-			.sort((a, b) => new Date(b.end).getTime() - new Date(a.end).getTime())[0];
+		const last = lastDebriefable(meetings, nowISO());
 		if (!last) return;
 		setDebriefPhase('actions');
 		setDebriefDraft('');
@@ -541,6 +547,7 @@ export default function App() {
 				onChange={setDebriefDraft}
 				onSubmit={submitDebrief}
 				onSkip={skipDebrief}
+				termRows={termRows}
 			/>
 		);
 	}
