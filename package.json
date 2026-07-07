@@ -15,7 +15,7 @@
 	"scripts": {
 		"start": "tsx src/cli.tsx",
 		"build": "node build/build.mjs",
-		"prepublishOnly": "npm run build",
+		"prepack": "npm run build",
 		"test": "prettier --check . && xo && node --import tsx --test test/*.test.ts"
 	},
 	"dependencies": {},
