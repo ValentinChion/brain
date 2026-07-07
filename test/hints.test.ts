@@ -10,3 +10,10 @@ test('hint couvre chaque branche world × mode', () => {
 	assert.match(hint('notes', 'nav'), /épingler/);
 	assert.match(hint('notes', 'reminder'), /Tab: tâches/); // notes n'a pas de mode reminder → fallback nav
 });
+
+test('mode prnav : navigation + ouvrir', () => {
+	assert.equal(
+		hint('tasks', 'prnav'),
+		'↑/↓ · o/Entrée: ouvrir · Échap: saisie',
+	);
+});

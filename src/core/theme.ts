@@ -7,6 +7,7 @@ export const color = {
 	resurface: 'yellow', // LE chaud, réservé à « ce qui ressort aujourd'hui »
 	pinned: 'green', // note épinglée = gardée
 	danger: 'red', // erreur de chargement
+	pr: 'magenta', // section PRs (miroir de la forge)
 } as const;
 
 export const glyph = {
@@ -21,6 +22,10 @@ export const glyph = {
 	multiline: '↵', // « ↵ +N »
 	rule: '─', // filet de la bannière resurgissement
 	bullet: '·',
+	prReview: '⇄', // PR à reviewer
+	prCiFail: '✗', // CI rouge
+	prChanges: '↺', // changements demandés
+	prApproved: '✓', // approuvée, à merger
 } as const;
 
 export const worldColor = (world: 'tasks' | 'notes') =>

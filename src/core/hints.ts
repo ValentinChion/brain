@@ -1,9 +1,10 @@
 // src/core/hints.ts — texte d'aide contextuel (pur, testable). Aucun import Ink.
 
 type World = 'tasks' | 'notes';
-type Mode = 'input' | 'nav' | 'reminder';
+type Mode = 'input' | 'nav' | 'reminder' | 'prnav';
 
 export function hint(world: World, mode: Mode): string {
+	if (mode === 'prnav') return '↑/↓ · o/Entrée: ouvrir · Échap: saisie';
 	if (world === 'tasks') {
 		if (mode === 'input') return 'Entrée: ajouter · ↑: naviguer · Tab: notes';
 		if (mode === 'nav') {

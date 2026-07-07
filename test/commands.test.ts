@@ -21,3 +21,11 @@ test('parseCommand : non-commandes → null (restent du contenu)', () => {
 test('parseCommand : /debrief reconnu', () => {
 	assert.deepEqual(parseCommand('/debrief'), {name: 'debrief', args: []});
 });
+
+test('/azure et /prs sont des commandes, avec args', () => {
+	assert.deepEqual(parseCommand('/azure org proj'), {
+		name: 'azure',
+		args: ['org', 'proj'],
+	});
+	assert.deepEqual(parseCommand('/prs'), {name: 'prs', args: []});
+});
