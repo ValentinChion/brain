@@ -47,23 +47,39 @@ export async function pollDeviceToken(dc: DeviceCode): Promise<OAuthToken> {
 	while (Date.now() < deadline) {
 		// eslint-disable-next-line no-await-in-loop
 		await delay(wait);
-		// eslint-disable-next-line no-await-in-loop
-		const res = await fetch(AZURE_TOKEN_ENDPOINT, {
-			method: 'POST',
-			headers: FORM,
-			body: buildDeviceTokenBody(dc.deviceCode),
-		});
-		// eslint-disable-next-line no-await-in-loop
-		const json = (await res.json()) as RawTokenResponse & {error?: string};
-		if (res.ok) {
-			const token = parseTokenResponse(json, nowISO());
+
+		let result: {
+			ok: boolean;
+			status: number;
+			json: RawTokenResponse & {error?: string};
+		};
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			const res = await fetch(AZURE_TOKEN_ENDPOINT, {
+				method: 'POST',
+				headers: FORM,
+				body: buildDeviceTokenBody(dc.deviceCode),
+			});
+			// eslint-disable-next-line no-await-in-loop
+			const json = (await res.json()) as RawTokenResponse & {error?: string};
+			result = {ok: res.ok, status: res.status, json};
+		} catch {
+			// aléa réseau pendant le poll (jusqu'à 15 min) — on retente au tick
+			// suivant, la deadline continue de borner la boucle
+			continue;
+		}
+
+		if (result.ok) {
+			const token = parseTokenResponse(result.json, nowISO());
 			saveAzureToken(token);
 			return token;
 		}
 
-		if (json.error === 'slow_down') wait += 5000;
-		else if (json.error !== 'authorization_pending') {
-			throw new Error(`autorisation refusée (${json.error ?? res.status})`);
+		if (result.json.error === 'slow_down') wait += 5000;
+		else if (result.json.error !== 'authorization_pending') {
+			throw new Error(
+				`autorisation refusée (${result.json.error ?? result.status})`,
+			);
 		}
 	}
 
@@ -75,18 +91,29 @@ async function ensureAccessToken(): Promise<string> {
 	if (!token) throw new Error('non connecté — /azure');
 	if (!isExpired(token, nowISO())) return token.accessToken;
 
-	let json: RawTokenResponse;
+	let res: Response;
 	try {
-		const res = await fetch(AZURE_TOKEN_ENDPOINT, {
+		res = await fetch(AZURE_TOKEN_ENDPOINT, {
 			method: 'POST',
 			headers: FORM,
 			body: buildAzureRefreshBody(token.refreshToken),
 		});
-		if (!res.ok) throw new Error(String(res.status));
+	} catch {
+		// panne réseau (DNS/offline...) — le token reste valable, on retentera plus tard
+		throw new Error('azure injoignable — réessaie plus tard');
+	}
+
+	if (!res.ok) {
+		clearAzureToken(); // refresh explicitement rejeté par le serveur → repartir propre
+		throw new Error('session Azure expirée — reconnecte via /azure');
+	}
+
+	let json: RawTokenResponse;
+	try {
 		json = (await res.json()) as RawTokenResponse;
 	} catch {
-		clearAzureToken(); // refresh révoqué/expiré → repartir propre
-		throw new Error('session Azure expirée — reconnecte via /azure');
+		// réponse 2xx mais JSON invalide — traité comme un aléa réseau, pas une révocation
+		throw new Error('azure injoignable — réessaie plus tard');
 	}
 
 	const next = parseTokenResponse(json, nowISO(), token.refreshToken);
