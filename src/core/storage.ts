@@ -102,3 +102,12 @@ export function clearToken(): void {
 	const path = join(brainDir(), TOKEN_FILE);
 	if (existsSync(path)) rmSync(path);
 }
+
+// ids des réunions déjà débriefées/skippées (anti re-déclenchement)
+export function loadHandled(): string[] {
+	return loadArray<string>('debriefed.json').data;
+}
+
+export function saveHandled(ids: string[]): void {
+	saveArray('debriefed.json', ids);
+}

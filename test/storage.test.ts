@@ -83,3 +83,24 @@ test('notes.json corrompu : pas de crash, pas écrasé', async () => {
 		assert.equal(readFileSync(path, 'utf8'), '{ pas du json'); // intact
 	});
 });
+
+test('saveHandled puis loadHandled : aller-retour', async () => {
+	await withDir(async () => {
+		const {saveHandled, loadHandled} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		saveHandled(['a', 'b']);
+		assert.deepEqual(loadHandled(), ['a', 'b']);
+	});
+});
+
+test('loadHandled : [] si absent ou corrompu', async () => {
+	await withDir(async dir => {
+		const {loadHandled} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		assert.deepEqual(loadHandled(), []);
+		writeFileSync(join(dir, 'debriefed.json'), '{ pas du json');
+		assert.deepEqual(loadHandled(), []);
+	});
+});
