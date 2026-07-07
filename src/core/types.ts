@@ -27,4 +27,5 @@ export type Meeting = {
 	title: string;
 	start: string; // ISO 8601
 	end: string; // ISO 8601
+	debriefable: boolean;
 };

@@ -44,3 +44,51 @@ test('summary : compte + prochaine', () => {
 	assert.equal(s.count, 2);
 	assert.equal(s.next?.id, '2');
 });
+
+test('shapeEvents : debriefable = réunion avec autrui, non déclinée, type default', () => {
+	const real = shapeEvents([
+		{
+			id: 'r',
+			summary: 'Sprint',
+			start: {dateTime: '2026-07-06T09:00:00Z'},
+			end: {dateTime: '2026-07-06T09:30:00Z'},
+			eventType: 'default',
+			attendees: [
+				{self: true, responseStatus: 'accepted'},
+				{responseStatus: 'accepted'},
+			],
+		},
+	]);
+	assert.equal(real[0].debriefable, true);
+
+	const solo = shapeEvents([
+		{
+			id: 's',
+			start: {dateTime: '2026-07-06T09:00:00Z'},
+			attendees: [{self: true}],
+		},
+	]);
+	assert.equal(solo[0].debriefable, false); // pas d'autre participant
+
+	const declined = shapeEvents([
+		{
+			id: 'd',
+			start: {dateTime: '2026-07-06T09:00:00Z'},
+			attendees: [
+				{self: true, responseStatus: 'declined'},
+				{responseStatus: 'accepted'},
+			],
+		},
+	]);
+	assert.equal(declined[0].debriefable, false); // décliné
+
+	const focus = shapeEvents([
+		{
+			id: 'f',
+			start: {dateTime: '2026-07-06T09:00:00Z'},
+			eventType: 'focusTime',
+			attendees: [{self: true}, {responseStatus: 'accepted'}],
+		},
+	]);
+	assert.equal(focus[0].debriefable, false); // bloc focus
+});
