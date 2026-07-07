@@ -18,7 +18,11 @@ export type KeyAction =
 	| {type: 'backspace'}
 	| {type: 'delete'; unit: 'word' | 'line'}
 	| {type: 'insert'; text: string}
-	| {type: 'move'; unit: 'char' | 'word' | 'line'; dir: 'left' | 'right'}
+	| {
+			type: 'move';
+			unit: 'char' | 'word' | 'line' | 'vertical';
+			dir: 'left' | 'right' | 'up' | 'down';
+	  }
 	| {type: 'ignore'};
 
 export type KeyFlags = {
@@ -31,6 +35,8 @@ export type KeyFlags = {
 	meta?: boolean;
 	leftArrow?: boolean;
 	rightArrow?: boolean;
+	upArrow?: boolean;
+	downArrow?: boolean;
 };
 
 // une séquence CSI résiduelle ressemble à `[13;2u`, `[A`, `[1;3D`… (jamais du texte)
@@ -73,6 +79,8 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 	const meta = key.meta ?? false;
 	const left = key.leftArrow ?? false;
 	const right = key.rightArrow ?? false;
+	const up = key.upArrow ?? false;
+	const down = key.downArrow ?? false;
 
 	// --- contrôles ---
 	if (input === '[13;2u') return {type: 'newline'}; // Shift+Entrée (kitty)
@@ -120,6 +128,9 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 	if (left) return {type: 'move', unit: 'char', dir: 'left'};
 	if (right) return {type: 'move', unit: 'char', dir: 'right'};
 
+	if (up) return {type: 'move', unit: 'vertical', dir: 'up'};
+	if (down) return {type: 'move', unit: 'vertical', dir: 'down'};
+
 	// --- texte : lettre, `[` littéral, collage ; on écarte CSI, Tab, combos ---
 	if (input && !isCsi(input) && !tab && !ctrl && !meta) {
 		return {type: 'insert', text: input};
@@ -159,12 +170,43 @@ function lineEnd(value: string, c: number): number {
 	return nl === -1 ? value.length : nl;
 }
 
+export function atFirstLine(value: string, c: number): boolean {
+	return value.lastIndexOf('\n', c - 1) === -1;
+}
+
+export function atLastLine(value: string, c: number): boolean {
+	return !value.slice(c).includes('\n');
+}
+
+// monte d'une ligne en conservant la colonne (clampée à la longueur de la ligne cible)
+function verticalUp(value: string, c: number): number {
+	const ls = lineStart(value, c);
+	if (ls === 0) return c; // pas de ligne au-dessus
+	const col = c - ls;
+	const prevStart = lineStart(value, ls - 1);
+	const prevLen = ls - 1 - prevStart;
+	return prevStart + Math.min(col, prevLen);
+}
+
+function verticalDown(value: string, c: number): number {
+	const le = lineEnd(value, c);
+	if (le === value.length) return c; // dernière ligne
+	const col = c - lineStart(value, c);
+	const nextStart = le + 1;
+	const nextLen = lineEnd(value, nextStart) - nextStart;
+	return nextStart + Math.min(col, nextLen);
+}
+
 function moveCursor(
 	value: string,
 	c: number,
-	unit: 'char' | 'word' | 'line',
-	dir: 'left' | 'right',
+	unit: 'char' | 'word' | 'line' | 'vertical',
+	dir: 'left' | 'right' | 'up' | 'down',
 ): number {
+	if (unit === 'vertical') {
+		return dir === 'up' ? verticalUp(value, c) : verticalDown(value, c);
+	}
+
 	if (unit === 'char') {
 		return dir === 'left' ? Math.max(0, c - 1) : Math.min(value.length, c + 1);
 	}

@@ -1,6 +1,12 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {decodeKey, applyEdit, isCtrlC} from '../src/core/multiline.ts';
+import {
+	decodeKey,
+	applyEdit,
+	isCtrlC,
+	atFirstLine,
+	atLastLine,
+} from '../src/core/multiline.ts';
 
 const CTRL_A = String.fromCodePoint(1);
 const CTRL_E = String.fromCodePoint(5);
@@ -35,7 +41,9 @@ test('texte : lettre, [ littéral, collage multi-caractères', () => {
 test('séquences CSI résiduelles (flèches, etc.) et combos ignorés', () => {
 	assert.deepEqual(decodeKey('[A', {}), {type: 'ignore'}); // flèche haut brute → parent
 	assert.deepEqual(decodeKey('', {tab: true}), {type: 'ignore'}); // Tab = bascule (géré ailleurs)
-	assert.deepEqual(decodeKey('', {upArrow: true} as never), {type: 'ignore'}); // flèche haut → parent
+	assert.deepEqual(decodeKey('', {downArrow: false, tab: true}), {
+		type: 'ignore',
+	}); // Tab reste ignoré
 });
 
 test('isCtrlC : legacy et séquence kitty', () => {
@@ -206,4 +214,37 @@ test('applyEdit : delete word / line (arrière)', () => {
 			cursor: 4,
 		},
 	);
+});
+
+test('decodeKey : flèches verticales', () => {
+	assert.deepEqual(decodeKey('', {upArrow: true}), {
+		type: 'move',
+		unit: 'vertical',
+		dir: 'up',
+	});
+	assert.deepEqual(decodeKey('', {downArrow: true}), {
+		type: 'move',
+		unit: 'vertical',
+		dir: 'down',
+	});
+});
+
+test('applyEdit : vertical préserve la colonne (clampée)', () => {
+	const v = 'abcdef\ngh'; // ligne 0 = abcdef (0..6), \n@6, ligne 1 = gh (7..9)
+	assert.equal(
+		applyEdit(v, 3, {type: 'move', unit: 'vertical', dir: 'down'}).cursor,
+		9,
+	); // col 3 → 'gh' (len 2) clampé à la fin (9)
+	assert.equal(
+		applyEdit(v, 8, {type: 'move', unit: 'vertical', dir: 'up'}).cursor,
+		1,
+	); // col 1 → ligne 0 col 1
+});
+
+test('atFirstLine / atLastLine', () => {
+	const v = 'abcdef\ngh';
+	assert.equal(atFirstLine(v, 3), true);
+	assert.equal(atFirstLine(v, 8), false);
+	assert.equal(atLastLine(v, 8), true);
+	assert.equal(atLastLine(v, 3), false);
 });
