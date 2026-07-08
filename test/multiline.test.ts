@@ -248,3 +248,45 @@ test('atFirstLine / atLastLine', () => {
 	assert.equal(atLastLine(v, 8), true);
 	assert.equal(atLastLine(v, 3), false);
 });
+
+// --- formes parsées par Ink 7 (protocole kitty géré par le render, pas par nous) ---
+
+test('decodeKey : Shift+Entrée parsé par Ink (return+shift) → newline', () => {
+	assert.deepEqual(decodeKey('', {return: true, shift: true}), {
+		type: 'newline',
+	});
+});
+
+test('decodeKey : Cmd (super) + flèche/Backspace → ligne', () => {
+	assert.deepEqual(decodeKey('', {leftArrow: true, super: true}), {
+		type: 'move',
+		unit: 'line',
+		dir: 'left',
+	});
+	assert.deepEqual(decodeKey('', {rightArrow: true, super: true}), {
+		type: 'move',
+		unit: 'line',
+		dir: 'right',
+	});
+	assert.deepEqual(decodeKey('', {backspace: true, super: true}), {
+		type: 'delete',
+		unit: 'line',
+	});
+});
+
+test('decodeKey : Home/End parsés par Ink → début/fin de ligne', () => {
+	assert.deepEqual(decodeKey('', {home: true}), {
+		type: 'move',
+		unit: 'line',
+		dir: 'left',
+	});
+	assert.deepEqual(decodeKey('', {end: true}), {
+		type: 'move',
+		unit: 'line',
+		dir: 'right',
+	});
+});
+
+test('decodeKey : Cmd+lettre n’insère pas', () => {
+	assert.deepEqual(decodeKey('k', {super: true}), {type: 'ignore'});
+});

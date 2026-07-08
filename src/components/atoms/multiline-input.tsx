@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {Text, useInput, useStdout} from 'ink';
+import {Text, useInput} from 'ink';
 import {
 	decodeKey,
 	applyEdit,
@@ -7,13 +7,8 @@ import {
 	atLastLine,
 } from '../../core/multiline.ts';
 
-// Protocole clavier kitty (Ghostty) : « désambigue » les touches pour que
-// Shift+Entrée arrive distinct (CSI 13;2u) au lieu d'être confondu avec Entrée,
-// et pour que les touches modifiées (Option/Cmd + flèches) arrivent en séquences
-// distinctes. On l'active tant que le champ a le focus, on le désactive en sortant.
-const ESC = String.fromCodePoint(27);
-const KITTY_PUSH = `${ESC}[>1u`;
-const KITTY_POP = `${ESC}[<u`;
+// Le protocole clavier kitty (Shift+Entrée distinct, modificateurs Option/Cmd)
+// est géré globalement par Ink 7 (render option kittyKeyboard dans cli.tsx).
 
 type Props = {
 	value: string;
@@ -34,7 +29,6 @@ export default function MultilineInput({
 	placeholder = '',
 	onExitUp,
 }: Props) {
-	const {stdout} = useStdout();
 	const [cursor, setCursor] = useState(value.length);
 
 	// resync du curseur quand `value` change depuis l'extérieur (soumission qui
@@ -47,14 +41,6 @@ export default function MultilineInput({
 			setCursor(value.length);
 		}
 	}, [value]);
-
-	useEffect(() => {
-		if (!focus) return;
-		stdout.write(KITTY_PUSH);
-		return () => {
-			stdout.write(KITTY_POP);
-		};
-	}, [focus, stdout]);
 
 	useInput(
 		(input, key) => {

@@ -5,11 +5,11 @@
 //   - decodeKey(input, key) : frappe (déjà parsée par Ink) → action d'édition.
 //   - applyEdit(value, cursor, action) : applique l'action au (value, cursor).
 //
-// Contexte kitty : quand le protocole clavier kitty est activé (Ghostty),
-// Ink livre Shift+Entrée comme input `[13;2u` et Échap comme `[27u`
-// (« désambiguation » : Échap n'arrive plus via key.escape). Les flèches
-// simples arrivent via key.leftArrow/rightArrow ; les touches modifiées
-// (Option/Cmd) soit via key.meta, soit en séquence CSI brute.
+// Contexte kitty : le protocole est géré par Ink 7 (render option kittyKeyboard),
+// qui parse les séquences CSI u en drapeaux : Shift+Entrée → key.return+key.shift,
+// Échap → key.escape, Option → key.meta, Cmd → key.super, Home/End → key.home/end.
+// Les formes CSI brutes (`[13;2u`, `[27u`, `[1;3D`…) sont gardées en repli pour
+// les terminaux/chemins où Ink ne les résout pas.
 
 export type KeyAction =
 	| {type: 'newline'}
@@ -33,6 +33,10 @@ export type KeyFlags = {
 	tab?: boolean;
 	ctrl?: boolean;
 	meta?: boolean;
+	shift?: boolean;
+	super?: boolean;
+	home?: boolean;
+	end?: boolean;
 	leftArrow?: boolean;
 	rightArrow?: boolean;
 	upArrow?: boolean;
@@ -77,18 +81,21 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 	const tab = key.tab ?? false;
 	const ctrl = key.ctrl ?? false;
 	const meta = key.meta ?? false;
+	const shift = key.shift ?? false;
+	const sup = key.super ?? false;
+	const home = key.home ?? false;
+	const end = key.end ?? false;
 	const left = key.leftArrow ?? false;
 	const right = key.rightArrow ?? false;
 	const up = key.upArrow ?? false;
 	const down = key.downArrow ?? false;
 
 	// --- contrôles ---
-	if (input === '[13;2u') return {type: 'newline'}; // Shift+Entrée (kitty)
+	if ((ret && shift) || input === '[13;2u') return {type: 'newline'}; // Shift+Entrée
 	if (ret) return {type: 'submit'}; // Entrée
-	if (esc || input === '[27u') return {type: 'cancel'}; // Échap (kitty → [27u)
+	if (esc || input === '[27u') return {type: 'cancel'}; // Échap
 
 	// suppression par mot / ligne (Backspace modifié) — AVANT le backspace simple.
-	// ⚠️ séquences kitty à confirmer par capture : Option=3, Ctrl=5, Cmd/Super=9.
 	if (
 		(meta && back) ||
 		(ctrl && back) ||
@@ -98,7 +105,9 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 		return {type: 'delete', unit: 'word'};
 	}
 
-	if (input === '[127;9u') return {type: 'delete', unit: 'line'};
+	if ((sup && back) || input === '[127;9u') {
+		return {type: 'delete', unit: 'line'};
+	}
 
 	if (back) return {type: 'backspace'};
 
@@ -111,9 +120,11 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 		return {type: 'move', unit: 'line', dir: 'right'};
 	}
 
-	if (CSI_LINE_LEFT.has(input))
+	if (home || (sup && left) || CSI_LINE_LEFT.has(input)) {
 		return {type: 'move', unit: 'line', dir: 'left'};
-	if (CSI_LINE_RIGHT.has(input)) {
+	}
+
+	if (end || (sup && right) || CSI_LINE_RIGHT.has(input)) {
 		return {type: 'move', unit: 'line', dir: 'right'};
 	}
 
@@ -132,7 +143,7 @@ export function decodeKey(input: string, key: KeyFlags): KeyAction {
 	if (down) return {type: 'move', unit: 'vertical', dir: 'down'};
 
 	// --- texte : lettre, `[` littéral, collage ; on écarte CSI, Tab, combos ---
-	if (input && !isCsi(input) && !tab && !ctrl && !meta) {
+	if (input && !isCsi(input) && !tab && !ctrl && !meta && !sup) {
 		return {type: 'insert', text: input};
 	}
 
