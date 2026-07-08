@@ -4,7 +4,7 @@
 
 export type Command = {name: string; args: string[]};
 
-const REGISTRY = new Set(['gauth', 'debrief', 'azure', 'prs']);
+const REGISTRY = new Set(['gauth', 'debrief', 'azure', 'prs', 'changelog']);
 
 export function parseCommand(text: string): Command | null {
 	const trimmed = text.trim();

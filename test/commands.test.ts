@@ -29,3 +29,7 @@ test('/azure et /prs sont des commandes, avec args', () => {
 	});
 	assert.deepEqual(parseCommand('/prs'), {name: 'prs', args: []});
 });
+
+test('/changelog est une commande', () => {
+	assert.deepEqual(parseCommand('/changelog'), {name: 'changelog', args: []});
+});
