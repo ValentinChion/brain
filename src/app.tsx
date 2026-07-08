@@ -477,7 +477,9 @@ export default function App() {
 					if (clampedSel >= visible.length - 1) setMode('input');
 					else setSelected(clampedSel + 1);
 				} else if (key.upArrow) {
-					if (clampedSel === 0 && prs.length > 0) {
+					// la section PRs n'est navigable que si elle affiche ses lignes
+					// (état connecté) — sinon on naviguerait des lignes invisibles
+					if (clampedSel === 0 && prs.length > 0 && azState === 'connected') {
 						setPrSelected(prs.length - 1);
 						setMode('prnav');
 					} else {
@@ -657,6 +659,10 @@ export default function App() {
 		if (visible.length > 0) {
 			setSelected(visible.length - 1);
 			setMode('nav');
+		} else if (prs.length > 0 && azState === 'connected') {
+			// pas de tâches mais des PRs : ↑ depuis la saisie doit pouvoir les atteindre
+			setPrSelected(prs.length - 1);
+			setMode('prnav');
 		}
 	};
 
