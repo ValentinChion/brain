@@ -121,6 +121,19 @@ test('saveAzureToken puis loadAzureToken : aller-retour, fichier séparé', asyn
 	});
 });
 
+test('saveMeta puis loadMeta : aller-retour ; {} si absent ou corrompu', async () => {
+	await withDir(async dir => {
+		const {loadMeta, saveMeta} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		assert.deepEqual(loadMeta(), {});
+		saveMeta({lastSeenVersion: '0.1.0'});
+		assert.deepEqual(loadMeta(), {lastSeenVersion: '0.1.0'});
+		writeFileSync(join(dir, 'meta.json'), '{ pas du json');
+		assert.deepEqual(loadMeta(), {});
+	});
+});
+
 test('loadAzureToken : null si absent ou corrompu ; clearAzureToken supprime', async () => {
 	await withDir(async dir => {
 		const {loadAzureToken, saveAzureToken, clearAzureToken} = await import(

@@ -116,6 +116,31 @@ export const clearAzureToken = (): void => {
 	clearTokenFile('azure-token.json');
 };
 
+// état applicatif hors données (ex. dernière version vue par l'utilisateur)
+export type Meta = {lastSeenVersion?: string};
+
+export function loadMeta(): Meta {
+	const path = join(brainDir(), 'meta.json');
+	if (!existsSync(path)) return {};
+	try {
+		const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
+		if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+			return {};
+		return parsed as Meta;
+	} catch {
+		// illisible → comme absent (on le réécrira proprement à la prochaine sauvegarde)
+		return {};
+	}
+}
+
+export function saveMeta(meta: Meta): void {
+	const dir = brainDir();
+	mkdirSync(dir, {recursive: true});
+	const tmp = join(dir, `meta.json.tmp-${process.pid}`);
+	writeFileSync(tmp, JSON.stringify(meta, null, 2));
+	renameSync(tmp, join(dir, 'meta.json')); // atomique sur le même volume
+}
+
 // ids des réunions déjà débriefées/skippées (anti re-déclenchement)
 export function loadHandled(): string[] {
 	return loadArray<string>('debriefed.json').data;
