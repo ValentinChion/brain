@@ -26,7 +26,10 @@ import {
 	saveNotes,
 	loadHandled,
 	saveHandled,
+	loadMeta,
+	saveMeta,
 } from './core/storage.ts';
+import {CHANGELOG, changelogLines} from './core/changelog.ts';
 import {
 	pendingDebriefs,
 	linesToItems,
@@ -55,6 +58,7 @@ import PrSection, {type AzState} from './components/molecules/pr-section.tsx';
 import TasksBody from './components/organisms/tasks-body.tsx';
 import NotesBody from './components/organisms/notes-body.tsx';
 import SweepView from './components/organisms/sweep-view.tsx';
+import ChangelogView from './components/organisms/changelog-view.tsx';
 import ConnectPrompt from './components/organisms/connect-prompt.tsx';
 import DebriefView from './components/organisms/debrief-view.tsx';
 import InputBar from './components/molecules/input-bar.tsx';
@@ -119,6 +123,30 @@ export default function App() {
 		'actions',
 	);
 	const [debriefDraft, setDebriefDraft] = useState('');
+
+	// --- changelog : takeover post-mise-à-jour + vue /changelog ---
+	const [initialMeta] = useState(loadMeta);
+	const [changelogOpen, setChangelogOpen] = useState<
+		'update' | 'manual' | null
+	>(
+		initialMeta.lastSeenVersion &&
+			initialMeta.lastSeenVersion !== CHANGELOG[0].version
+			? 'update'
+			: null,
+	);
+	const [clOffset, setClOffset] = useState(0);
+
+	// première installation : rien à annoncer, on enregistre juste la version courante
+	useEffect(() => {
+		if (!initialMeta.lastSeenVersion)
+			saveMeta({...initialMeta, lastSeenVersion: CHANGELOG[0].version});
+	}, [initialMeta]);
+
+	const closeChangelog = () => {
+		saveMeta({...loadMeta(), lastSeenVersion: CHANGELOG[0].version});
+		setChangelogOpen(null);
+		setClOffset(0);
+	};
 
 	// --- miroir PRs Azure DevOps (lecture seule, la forge est la vérité) ---
 	const [azState, setAzState] = useState<AzState>(() =>
@@ -262,12 +290,13 @@ export default function App() {
 		}
 	};
 
-	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, `/azure`, `/prs`)
+	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, `/azure`, `/prs`, `/changelog`)
 	const runCommand = (name: string, args: string[]) => {
 		if (name === 'gauth') void runConnect();
 		if (name === 'debrief') runDebrief();
 		if (name === 'azure') void runAzure(args);
 		if (name === 'prs') void refreshPrs();
+		if (name === 'changelog') setChangelogOpen('manual');
 	};
 
 	const head = debriefQueue[0];
@@ -419,7 +448,35 @@ export default function App() {
 		saveNotes(next);
 	};
 
-	const blocked = sweeping || connectPromptOpen || debriefQueue.length > 0;
+	const blocked =
+		sweeping ||
+		connectPromptOpen ||
+		debriefQueue.length > 0 ||
+		changelogOpen !== null;
+
+	// --- Vue changelog : takeover = dernière version seulement ; /changelog = historique ---
+	const clLines =
+		changelogOpen === 'manual'
+			? changelogLines(CHANGELOG)
+			: changelogLines([CHANGELOG[0]]);
+	// chrome de ChangelogView : masthead + hints + padding ; listRows réserve les indicateurs ▲/▼
+	const clRows = listRows(termRows, 8, clLines.length);
+
+	useInput(
+		(input, key) => {
+			if (key.escape || key.return) {
+				closeChangelog();
+			} else if (key.downArrow) {
+				setClOffset(o => Math.min(o + 1, Math.max(0, clLines.length - clRows)));
+			} else if (key.upArrow) {
+				setClOffset(o => Math.max(0, o - 1));
+			}
+		},
+		{
+			isActive:
+				changelogOpen !== null && !sweeping && !connectPromptOpen && !head,
+		},
+	);
 
 	// --- Prompt de connexion agenda au démarrage (s'affiche après le ménage) ---
 	useInput(
@@ -702,6 +759,17 @@ export default function App() {
 				onSubmit={submitDebrief}
 				onSkip={skipDebrief}
 				termRows={termRows}
+			/>
+		);
+	}
+
+	if (changelogOpen) {
+		return (
+			<ChangelogView
+				lines={clLines}
+				offset={clOffset}
+				rows={clRows}
+				loadError={loadError}
 			/>
 		);
 	}
