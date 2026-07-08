@@ -12,9 +12,11 @@ export default function NoteRow({
 }) {
 	const lines = note.text.split('\n');
 	const extra = lines.length - 1;
-	// gouttière fixe 2 colonnes (caret + épingle) → les corps s'alignent
+	// gouttière fixe 2 colonnes (caret + épingle) → les corps s'alignent.
+	// non sélectionnée : tronquée (une ligne qui wrappe fausse le budget hauteur) ;
+	// sélectionnée : texte complet (ses lignes sont comptées par app.tsx).
 	return (
-		<Text bold={selected}>
+		<Text bold={selected} wrap={selected ? 'wrap' : 'truncate-end'}>
 			<Text color={color.note}>{selected ? glyph.caret : ' '}</Text>
 			<Text color={color.pinned}>{note.pinned ? glyph.pin : ' '}</Text>{' '}
 			{selected ? note.text : lines[0]}

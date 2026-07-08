@@ -19,6 +19,31 @@ export function buildView(
 	};
 }
 
+// Nombre de lignes qu'occupe un texte enveloppé à `width` colonnes : chaque
+// ligne dure (\n) compte, plus le wrap doux des lignes trop longues.
+// ponytail: longueur de chaîne ≈ largeur d'affichage (CJK/emoji sous-comptés) ;
+// passer à string-width si des textes larges apparaissent en pratique.
+export function wrappedRows(text: string, width: number): number {
+	const w = Math.max(1, width);
+	return text
+		.split('\n')
+		.reduce((n, line) => n + Math.max(1, Math.ceil(line.length / w)), 0);
+}
+
+// Lignes disponibles pour une liste : hauteur du terminal moins le chrome
+// (masthead, statut, saisie, hints… — calculé par l'appelant). Si la liste
+// déborde, on réserve 2 lignes pour les indicateurs ▲/▼ « N de plus » afin
+// que le rendu ne dépasse jamais la hauteur du terminal (sinon ça scrolle).
+export function listRows(
+	termRows: number,
+	chrome: number,
+	count: number,
+): number {
+	const base = Math.max(1, termRows - chrome);
+	if (count <= base) return base;
+	return Math.max(1, base - 2);
+}
+
 // ponytail: fenêtre dérivée uniquement de `selected` (pas d'offset en state) — la sélection se cale en bas de
 // fenêtre quand elle scrolle. Si un scroll plus "stable" gêne à l'usage, mémoriser start dans app.tsx.
 export function windowView(

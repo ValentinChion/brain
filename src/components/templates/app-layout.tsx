@@ -7,6 +7,7 @@ import Masthead from '../molecules/masthead.tsx';
 // la barre de saisie et les hints tout en bas. Ne reçoit que des slots.
 export default function AppLayout({
 	termRows,
+	compact = false,
 	accent,
 	label,
 	loadError,
@@ -16,6 +17,7 @@ export default function AppLayout({
 	hints,
 }: {
 	termRows: number;
+	compact?: boolean;
 	accent: string;
 	label: string;
 	loadError: string | null;
@@ -26,7 +28,7 @@ export default function AppLayout({
 }) {
 	return (
 		<Box flexDirection="column" height={termRows}>
-			<Masthead accent={accent} label={label} />
+			<Masthead accent={accent} label={label} compact={compact} />
 			<Box flexDirection="column" flexGrow={1} paddingX={1} paddingBottom={1}>
 				{loadError && <Text color={color.danger}>{loadError}</Text>}
 				{status && (

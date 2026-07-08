@@ -14,8 +14,10 @@ export default function Row({
 	selected: boolean;
 }) {
 	const due = isDue(item, today);
+	// tronquée dans la liste (une ligne qui wrappe fausse le budget hauteur) ;
+	// sélectionnée : texte complet, ses lignes sont comptées par app.tsx
 	return (
-		<Text bold={selected}>
+		<Text bold={selected} wrap={selected ? 'wrap' : 'truncate-end'}>
 			<Text color={color.task}>{selected ? `${glyph.caret} ` : '  '}</Text>
 			<Text color={due ? color.resurface : undefined}>{item.text}</Text>
 			{item.remindOn && (

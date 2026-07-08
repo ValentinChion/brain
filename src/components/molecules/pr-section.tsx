@@ -66,7 +66,8 @@ export default function PrSection({
 				const age = ageDays(pr.createdAt, nowISO);
 				const sel = active && i === selected;
 				return (
-					<Text key={pr.id} inverse={sel}>
+					// tronquée sauf sélection (dépliée, comptée dans prRows par app.tsx)
+					<Text key={pr.id} inverse={sel} wrap={sel ? 'wrap' : 'truncate-end'}>
 						<Text color={look.tint}>
 							{sel ? glyph.caret : ' '} {look.icon} {look.label}
 						</Text>

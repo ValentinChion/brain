@@ -1,8 +1,8 @@
 import React, {useState, useEffect, useRef} from 'react';
-import {useInput, useStdout, useApp} from 'ink';
+import {useInput, useWindowSize, useApp} from 'ink';
 import type {Item, Note, Meeting} from './core/types.ts';
 import {todayYMD, stepReminder} from './core/date.ts';
-import {buildView, windowView} from './core/view.ts';
+import {buildView, windowView, listRows, wrappedRows} from './core/view.ts';
 import {
 	addItem,
 	editText,
@@ -314,29 +314,17 @@ export default function App() {
 		setDebriefQueue(prev => [last, ...prev.filter(m => m.id !== last.id)]);
 	};
 
-	const {stdout} = useStdout();
 	const {exit} = useApp();
 
-	// Ctrl+C quitte toujours — y compris quand le protocole kitty le remappe en
-	// `[99;5u` (sinon Ink ne le voit pas). exit() démonte proprement (restaure kitty).
+	// Ctrl+C quitte toujours. C'est LE point de sortie : exitOnCtrlC est désactivé
+	// dans cli.tsx (la détection interne d'Ink 7 ne reconnaît pas la forme kitty
+	// et avale la touche). isCtrlC couvre les deux formes (ctrl+'c' parsé, CSI brut).
 	useInput((input, key) => {
 		if (isCtrlC(input, key)) exit();
 	});
 
-	// hauteur du terminal, re-lue sur resize (le split Ghostty bouge souvent)
-	const [termRows, setTermRows] = useState(stdout?.rows ?? 24);
-	useEffect(() => {
-		if (!stdout) return;
-		const onResize = () => {
-			setTermRows(stdout.rows);
-		};
-
-		stdout.on('resize', onResize);
-
-		return () => {
-			stdout.off('resize', onResize);
-		};
-	}, [stdout]);
+	// dimensions du terminal, re-rendues sur resize (le split Ghostty bouge souvent)
+	const {rows: termRows, columns: cols} = useWindowSize();
 
 	const today = todayYMD(new Date()); // recalculé à chaque render (donc à chaque frappe)
 	const view = buildView(items, today);
@@ -346,24 +334,76 @@ export default function App() {
 	const noteList = sortNotes(notes);
 	const noteSel = Math.min(noteSelected, Math.max(0, noteList.length - 1));
 
-	// lignes occupées par la section PRs (statut ou lignes de PR)
+	// --- ligne sélectionnée dépliée : la liste tronque, la sélection montre tout.
+	// Les mesures reflètent la composition des composants (row/note-row/pr-section) ;
+	// approximation ligne rendue ≈ texte + suffixes, gouttière déduite de la largeur.
+	const selTask =
+		world === 'tasks' && mode !== 'input' ? visible[clampedSel] : undefined;
+	const taskExtra = selTask
+		? wrappedRows(
+				selTask.text +
+					(selTask.remindOn ? `  ·${selTask.remindOn.slice(5)}` : '') +
+					(selTask.source ? `  · ${selTask.source}` : ''),
+				cols - 2,
+		  ) - 1
+		: 0;
+	const selNote =
+		world === 'notes' && mode !== 'input' ? noteList[noteSel] : undefined;
+	const noteExtra = selNote
+		? wrappedRows(
+				selNote.text + (selNote.source ? `  · ${selNote.source}` : ''),
+				cols - 3,
+		  ) - 1
+		: 0;
+	const selPr =
+		mode === 'prnav'
+			? prs[Math.min(prSelected, Math.max(0, prs.length - 1))]
+			: undefined;
+	const prExtra = selPr
+		? wrappedRows(
+				`changements demandés  · ${selPr.title} (${selPr.author}) · 99j`,
+				cols - 4,
+		  ) - 1
+		: 0;
+
+	// lignes occupées par la section PRs (statut ou lignes de PR, + sélection dépliée)
 	const prRows =
-		azState === 'off'
+		(azState === 'off'
 			? 0
 			: azState === 'connected'
 			? prs.length + (azError ? 1 : 0)
-			: 1;
-	// fenêtre de scroll : hauteur du terminal moins le chrome (logo 4 lignes + marge, saisie, hints)
-	// ponytail: marge fixe de 11 lignes, ajuster si le chrome grossit
-	const rows = Math.max(1, termRows - 11 - prRows);
-	const cols = stdout?.columns ?? 80;
+			: 1) + prExtra;
+	// masthead compact (1 ligne au lieu du sprite 4 lignes) sous 20 lignes de haut
+	const compactHead = termRows < 20;
+	// chrome hors liste, compté ligne à ligne : masthead (+marge), erreur éventuelle,
+	// statut agenda+PRs (+marge), saisie (+marge, peut grandir en multi-lignes),
+	// hints (+marge), padding bas. Si ce décompte dévie du JSX d'AppLayout, la liste
+	// déborde du terminal et tout scrolle.
+	const footerRows =
+		mode === 'reminder'
+			? 3
+			: (world === 'tasks' ? draft : noteDraft).split('\n').length;
+	const chrome =
+		(compactHead ? 2 : 5) +
+		(loadError ? 1 : 0) +
+		(2 + prRows) +
+		(1 + footerRows) +
+		2 +
+		1;
 	// bannière signature « ressort aujourd'hui » : label + filet qui remplit la largeur
 	const dueLabel = ` ${glyph.moreUp} ressort aujourd'hui `;
 	const dueRule =
 		dueLabel + glyph.rule.repeat(Math.max(4, cols - dueLabel.length - 2));
-	const {start, end} = windowView(visible.length, clampedSel, rows);
+	const taskRows = listRows(
+		termRows,
+		// + bannière jaune éventuelle + lignes supplémentaires de la sélection dépliée
+		chrome + (view.due.length > 0 ? 1 : 0) + taskExtra,
+		visible.length,
+	);
+	const {start, end} = windowView(visible.length, clampedSel, taskRows);
 	const shown = visible.slice(start, end);
-	const noteWin = windowView(noteList.length, noteSel, rows);
+	const noteRows = listRows(termRows, chrome + noteExtra, noteList.length);
+	const noteWin = windowView(noteList.length, noteSel, noteRows);
 	const shownNotes = noteList.slice(noteWin.start, noteWin.end);
 
 	// persiste à chaque changement
@@ -712,6 +752,7 @@ export default function App() {
 	return (
 		<AppLayout
 			termRows={termRows}
+			compact={compactHead}
 			accent={worldColor(world)}
 			label={world === 'tasks' ? 'TÂCHES' : 'NOTES'}
 			loadError={loadError}
