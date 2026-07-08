@@ -28,7 +28,11 @@ import {
 	saveHandled,
 	loadMeta,
 	saveMeta,
+	appendJournal,
+	readJournal,
+	backfillJournal,
 } from './core/storage.ts';
+import {computeStats, type Stats} from './core/stats.ts';
 import {CHANGELOG, changelogLines} from './core/changelog.ts';
 import {
 	pendingDebriefs,
@@ -59,6 +63,7 @@ import TasksBody from './components/organisms/tasks-body.tsx';
 import NotesBody from './components/organisms/notes-body.tsx';
 import SweepView from './components/organisms/sweep-view.tsx';
 import ChangelogView from './components/organisms/changelog-view.tsx';
+import StatsScreen from './components/templates/stats-screen.tsx';
 import ConnectPrompt from './components/organisms/connect-prompt.tsx';
 import DebriefView from './components/organisms/debrief-view.tsx';
 import InputBar from './components/molecules/input-bar.tsx';
@@ -141,6 +146,15 @@ export default function App() {
 		if (!initialMeta.lastSeenVersion)
 			saveMeta({...initialMeta, lastSeenVersion: CHANGELOG[0].version});
 	}, [initialMeta]);
+
+	// --- écran /stats (journal append-only) ---
+	const [statsData, setStatsData] = useState<Stats | null>(null);
+
+	// backfill au démarrage (pas au premier /stats) : un journal absent est
+	// reconstruit depuis les données existantes avant tout append
+	useEffect(() => {
+		backfillJournal(initial.items, initialNotes.notes);
+	}, [initial, initialNotes]);
 
 	const closeChangelog = () => {
 		saveMeta({...loadMeta(), lastSeenVersion: CHANGELOG[0].version});
@@ -290,13 +304,16 @@ export default function App() {
 		}
 	};
 
-	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, `/azure`, `/prs`, `/changelog`)
+	// dispatch d'une commande de la barre (`/gauth`, `/debrief`, `/azure`, `/prs`, `/changelog`, `/stats`)
 	const runCommand = (name: string, args: string[]) => {
 		if (name === 'gauth') void runConnect();
 		if (name === 'debrief') runDebrief();
 		if (name === 'azure') void runAzure(args);
 		if (name === 'prs') void refreshPrs();
 		if (name === 'changelog') setChangelogOpen('manual');
+		// stats calculées à l'ouverture : état mémoire + lecture du journal
+		if (name === 'stats')
+			setStatsData(computeStats(readJournal(), items, notes, today));
 	};
 
 	const head = debriefQueue[0];
@@ -313,7 +330,11 @@ export default function App() {
 		if (debriefPhase === 'actions') {
 			if (lines.length > 0) {
 				let next = items;
-				for (const l of lines) next = addItem(next, l, nowISO(), head.title);
+				for (const l of lines) {
+					next = addItem(next, l, nowISO(), head.title);
+					appendJournal({t: 'task', d: today});
+				}
+
 				commit(next);
 			}
 
@@ -324,7 +345,11 @@ export default function App() {
 
 		if (lines.length > 0) {
 			let next = notes;
-			for (const l of lines) next = addNote(next, l, nowISO(), head.title);
+			for (const l of lines) {
+				next = addNote(next, l, nowISO(), head.title);
+				appendJournal({t: 'note', d: today});
+			}
+
 			commitNotes(next);
 		}
 
@@ -452,7 +477,8 @@ export default function App() {
 		sweeping ||
 		connectPromptOpen ||
 		debriefQueue.length > 0 ||
-		changelogOpen !== null;
+		changelogOpen !== null ||
+		statsData !== null;
 
 	// --- Vue changelog : takeover = dernière version seulement ; /changelog = historique ---
 	const clLines =
@@ -475,6 +501,21 @@ export default function App() {
 		{
 			isActive:
 				changelogOpen !== null && !sweeping && !connectPromptOpen && !head,
+		},
+	);
+
+	// --- Écran /stats : reste affiché jusqu'à Échap ---
+	useInput(
+		(input, key) => {
+			if (key.escape) setStatsData(null);
+		},
+		{
+			isActive:
+				statsData !== null &&
+				!sweeping &&
+				!connectPromptOpen &&
+				!head &&
+				changelogOpen === null,
 		},
 	);
 
@@ -551,6 +592,7 @@ export default function App() {
 					const target = visible[clampedSel];
 					if (input === ' ') {
 						commit(setDone(items, target.id, !target.done, nowISO()));
+						appendJournal({t: target.done ? 'undone' : 'done', d: today});
 					} else if (input === 'd') {
 						commit(removeItem(items, target.id));
 					} else if (input === 'e') {
@@ -682,6 +724,7 @@ export default function App() {
 			setEditingId(null);
 		} else {
 			commit(addItem(items, text, nowISO()));
+			appendJournal({t: 'task', d: today});
 		}
 
 		setDraft('');
@@ -705,6 +748,7 @@ export default function App() {
 			setEditingNoteId(null);
 		} else {
 			commitNotes(addNote(notes, value, nowISO()));
+			appendJournal({t: 'note', d: today});
 		}
 
 		setNoteDraft('');
@@ -770,6 +814,16 @@ export default function App() {
 				offset={clOffset}
 				rows={clRows}
 				loadError={loadError}
+			/>
+		);
+	}
+
+	if (statsData) {
+		return (
+			<StatsScreen
+				stats={statsData}
+				prCount={azState === 'connected' ? prs.length : null}
+				termRows={termRows}
 			/>
 		);
 	}

@@ -30,3 +30,13 @@ export const glyph = {
 
 export const worldColor = (world: 'tasks' | 'notes') =>
 	world === 'tasks' ? color.task : color.note;
+
+// écran /stats : néon true-color assumé, en rupture avec la sobriété ambiante.
+// 5 paliers d'intensité, du violet profond au cyan électrique (heatmap + dégradés).
+export const statsPalette = [
+	'#4c1d95',
+	'#7c3aed',
+	'#c026d3',
+	'#e879f9',
+	'#22d3ee',
+] as const;
