@@ -428,7 +428,8 @@ export default function App() {
 		{isActive: connectPromptOpen && !sweeping},
 	);
 
-	// --- Bascule Tab (tâches ⇄ notes). '[9u' = Tab si le protocole kitty le remappe. ---
+	// --- Bascule Tab (tâches ⇄ notes). '[9u' = repli si la séquence kitty arrive brute.
+	// Inactif en mode rappel : Tab n'abandonne pas silencieusement le stepper. ---
 	useInput(
 		(input, key) => {
 			if (key.tab || input === '[9u') {
@@ -436,7 +437,7 @@ export default function App() {
 				setMode('input');
 			}
 		},
-		{isActive: !blocked},
+		{isActive: !blocked && mode !== 'reminder'},
 	);
 
 	// --- Monde TÂCHES (logique v1 inchangée : input / nav / reminder-stepper) ---
