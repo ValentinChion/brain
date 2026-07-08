@@ -11,14 +11,25 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
 	{
-		version: '0.1.0',
+		version: '0.2.0',
 		date: '2026-07-08',
+		entries: [
+			'Miroir des PRs Azure DevOps : /azure connecte, /prs rafraîchit, navigation aux flèches',
+			'Changelog intégré : nouveautés après mise à jour + commande /changelog',
+			'Rendu calé sur la hauteur du terminal (plus de débordement en petit split)',
+			"Tab n'abandonne plus silencieusement le stepper de rappel",
+			'Démarrage plus réactif (une seule lecture disque au montage)',
+			'Base technique : Ink 7 + React 19 (Node ≥ 22 requis)',
+		],
+	},
+	{
+		version: '0.1.0',
+		date: '2026-07-07',
 		entries: [
 			'Capture de tâches/feedbacks avec rappels (stepper aux flèches)',
 			'Notes épinglables + ménage hebdomadaire des notes périmées',
 			'Agenda Google : réunions du jour + débrief de fin de réunion',
-			'Miroir des PRs Azure DevOps (lecture seule)',
-			'Commandes : /gauth /debrief /azure /prs /changelog',
+			'Commandes : /gauth /debrief',
 		],
 	},
 ];
