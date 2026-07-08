@@ -71,8 +71,10 @@ type World = 'tasks' | 'notes';
 const nowISO = () => new Date().toISOString();
 
 export default function App() {
-	const initial = load();
-	const initialNotes = loadNotes();
+	// useState(fn) = init paresseuse : une seule lecture disque au montage
+	// (un appel direct relirait les JSON à chaque render, donc à chaque frappe)
+	const [initial] = useState(load);
+	const [initialNotes] = useState(loadNotes);
 	const mountToday = todayYMD(new Date());
 
 	const [items, setItems] = useState<Item[]>(initial.items);
