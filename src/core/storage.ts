@@ -1,6 +1,7 @@
 import {homedir} from 'node:os';
 import {join} from 'node:path';
 import {
+	appendFileSync,
 	existsSync,
 	mkdirSync,
 	readFileSync,
@@ -9,7 +10,8 @@ import {
 	chmodSync,
 	rmSync,
 } from 'node:fs';
-import type {Item, Note, OAuthToken} from './types.ts';
+import type {Item, JournalEvent, Note, OAuthToken} from './types.ts';
+import {todayYMD} from './date.ts';
 
 // défaut : `~/.brain` (dossier maison) → même emplacement quel que soit le mode
 // de lancement (dev, `npm link`, install globale). Surchargeable via BRAIN_DIR
@@ -139,6 +141,57 @@ export function saveMeta(meta: Meta): void {
 	const tmp = join(dir, `meta.json.tmp-${process.pid}`);
 	writeFileSync(tmp, JSON.stringify(meta, null, 2));
 	renameSync(tmp, join(dir, 'meta.json')); // atomique sur le même volume
+}
+
+// --- journal append-only (~/.brain/journal.jsonl) — la source de /stats.
+// Une ligne JSON par événement ; on n'y réécrit ni ne supprime jamais :
+// immunisé contre le ménage des notes et la touche `d`.
+
+const JOURNAL = 'journal.jsonl';
+
+export function appendJournal(event: JournalEvent): void {
+	const dir = brainDir();
+	mkdirSync(dir, {recursive: true});
+	appendFileSync(join(dir, JOURNAL), JSON.stringify(event) + '\n');
+}
+
+const EVENT_TYPES = new Set(['task', 'note', 'done', 'undone']);
+
+export function readJournal(): JournalEvent[] {
+	const path = join(brainDir(), JOURNAL);
+	if (!existsSync(path)) return [];
+	const events: JournalEvent[] = [];
+	for (const line of readFileSync(path, 'utf8').split('\n')) {
+		if (!line.trim()) continue;
+		try {
+			const e = JSON.parse(line) as JournalEvent;
+			if (EVENT_TYPES.has(e.t) && typeof e.d === 'string') events.push(e);
+		} catch {
+			// ligne corrompue → ignorée, le reste du journal reste lisible
+		}
+	}
+
+	return events;
+}
+
+// Au démarrage, si le journal n'existe pas : reconstruction depuis les données
+// existantes pour préserver l'historique. Écrit même un journal vide, sinon des
+// captures appendées avant le premier /stats créeraient un journal partiel qui
+// serait ensuite écrasé/complété à tort par un backfill tardif.
+export function backfillJournal(items: Item[], notes: Note[]): void {
+	const path = join(brainDir(), JOURNAL);
+	if (existsSync(path)) return;
+	const events: JournalEvent[] = [];
+	for (const it of items) {
+		events.push({t: 'task', d: todayYMD(new Date(it.createdAt))});
+		if (it.doneAt) events.push({t: 'done', d: todayYMD(new Date(it.doneAt))});
+	}
+
+	for (const n of notes)
+		events.push({t: 'note', d: todayYMD(new Date(n.createdAt))});
+	events.sort((a, b) => a.d.localeCompare(b.d));
+	mkdirSync(brainDir(), {recursive: true});
+	writeFileSync(path, events.map(e => JSON.stringify(e) + '\n').join(''));
 }
 
 // ids des réunions déjà débriefées/skippées (anti re-déclenchement)

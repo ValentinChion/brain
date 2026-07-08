@@ -134,6 +134,75 @@ test('saveMeta puis loadMeta : aller-retour ; {} si absent ou corrompu', async (
 	});
 });
 
+// --- journal append-only (source de /stats) ---
+
+test('appendJournal puis readJournal : aller-retour, dossier créé', async () => {
+	await withDir(async dir => {
+		const {appendJournal, readJournal} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		appendJournal({t: 'task', d: '2026-07-08'});
+		appendJournal({t: 'done', d: '2026-07-08'});
+		assert.ok(existsSync(join(dir, 'journal.jsonl')));
+		assert.deepEqual(readJournal(), [
+			{t: 'task', d: '2026-07-08'},
+			{t: 'done', d: '2026-07-08'},
+		]);
+	});
+});
+
+test('readJournal : [] si absent ; lignes corrompues ignorées', async () => {
+	await withDir(async dir => {
+		const {readJournal} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		assert.deepEqual(readJournal(), []);
+		writeFileSync(
+			join(dir, 'journal.jsonl'),
+			'{"t":"task","d":"2026-07-01"}\npas du json\n{"t":"zap","d":"x"}\n\n{"t":"note","d":"2026-07-02"}\n',
+		);
+		assert.deepEqual(readJournal(), [
+			{t: 'task', d: '2026-07-01'},
+			{t: 'note', d: '2026-07-02'},
+		]);
+	});
+});
+
+test('backfillJournal : reconstruit depuis tâches + notes, idempotent', async () => {
+	await withDir(async () => {
+		const {backfillJournal, readJournal, appendJournal} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		const closed: Item = {
+			...item,
+			id: 'b',
+			done: true,
+			doneAt: '2026-07-05T10:00:00.000Z',
+		};
+		backfillJournal([item, closed], [note]);
+		const events = readJournal();
+		assert.equal(events.length, 4); // 2 tâches + 1 done + 1 note
+		assert.equal(events.filter((e: {t: string}) => e.t === 'task').length, 2);
+		assert.equal(events.filter((e: {t: string}) => e.t === 'done').length, 1);
+		assert.equal(events.filter((e: {t: string}) => e.t === 'note').length, 1);
+		// idempotent : un journal existant n'est jamais régénéré ni écrasé
+		appendJournal({t: 'task', d: '2026-07-08'});
+		backfillJournal([item, closed], [note]);
+		assert.equal(readJournal().length, 5);
+	});
+});
+
+test('backfillJournal sans données : journal vide créé (bloque le re-backfill)', async () => {
+	await withDir(async dir => {
+		const {backfillJournal, readJournal} = await import(
+			`../src/core/storage.ts?${Math.random()}`
+		);
+		backfillJournal([], []);
+		assert.ok(existsSync(join(dir, 'journal.jsonl')));
+		assert.deepEqual(readJournal(), []);
+	});
+});
+
 test('loadAzureToken : null si absent ou corrompu ; clearAzureToken supprime', async () => {
 	await withDir(async dir => {
 		const {loadAzureToken, saveAzureToken, clearAzureToken} = await import(

@@ -16,6 +16,12 @@ export type Note = {
 	source?: string;
 };
 
+// une ligne du journal append-only (~/.brain/journal.jsonl) — la source de /stats
+export type JournalEvent = {
+	t: 'task' | 'note' | 'done' | 'undone';
+	d: string; // "AAAA-MM-JJ" (jour local)
+};
+
 export type OAuthToken = {
 	refreshToken: string;
 	accessToken: string;
