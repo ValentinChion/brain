@@ -18,6 +18,7 @@ type Props = {
 	focus?: boolean;
 	placeholder?: string;
 	onExitUp?: () => void;
+	onExitDown?: () => void;
 };
 
 export default function MultilineInput({
@@ -28,6 +29,7 @@ export default function MultilineInput({
 	focus = true,
 	placeholder = '',
 	onExitUp,
+	onExitDown,
 }: Props) {
 	const [cursor, setCursor] = useState(value.length);
 
@@ -63,7 +65,10 @@ export default function MultilineInput({
 					return;
 				}
 
-				if (action.dir === 'down' && atLastLine(value, cursor)) return;
+				if (action.dir === 'down' && atLastLine(value, cursor)) {
+					onExitDown?.();
+					return;
+				}
 			}
 
 			const next = applyEdit(value, cursor, action);

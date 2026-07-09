@@ -15,6 +15,7 @@ export default function InputBar({
 	onSubmit,
 	onCancel,
 	onExitUp,
+	onExitDown,
 }: {
 	world: 'tasks' | 'notes';
 	editing: boolean;
@@ -25,6 +26,7 @@ export default function InputBar({
 	onSubmit: (value: string) => void;
 	onCancel?: () => void;
 	onExitUp?: () => void;
+	onExitDown?: () => void;
 }) {
 	const prompt = editing ? `${glyph.editing} ` : `${glyph.prompt} `;
 	const label = world === 'tasks' ? '[tâche]' : '[note]';
@@ -42,6 +44,7 @@ export default function InputBar({
 				onSubmit={onSubmit}
 				onCancel={onCancel ?? (() => undefined)}
 				onExitUp={onExitUp}
+				onExitDown={onExitDown}
 			/>
 		</Box>
 	);
