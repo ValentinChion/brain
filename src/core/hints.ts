@@ -3,7 +3,11 @@
 type World = 'tasks' | 'notes';
 type Mode = 'input' | 'nav' | 'reminder' | 'prnav';
 
-export function hint(world: World, mode: Mode): string {
+export function hint(world: World, mode: Mode, menuOpen = false): string {
+	if (menuOpen) {
+		return '↑/↓ choisir · Entrée: exécuter · Tab: compléter · Échap: annuler';
+	}
+
 	if (mode === 'prnav') return '↑/↓ · o/Entrée: ouvrir · Échap: saisie';
 	if (world === 'tasks') {
 		if (mode === 'input') return 'Entrée: ajouter · ↑: naviguer · Tab: notes';
