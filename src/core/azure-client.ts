@@ -5,8 +5,9 @@
 import {setTimeout as delay} from 'node:timers/promises';
 import type {OAuthToken} from './types.ts';
 import {
-	DEVICE_CODE_ENDPOINT,
-	AZURE_TOKEN_ENDPOINT,
+	deviceCodeEndpoint,
+	azureTokenEndpoint,
+	parseTenantHeader,
 	buildDeviceCodeBody,
 	parseDeviceCode,
 	buildDeviceTokenBody,
@@ -20,7 +21,7 @@ import {
 	type RawTokenResponse,
 } from './google-auth.ts';
 import {loadAzureToken, saveAzureToken, clearAzureToken} from './storage.ts';
-import {loadAzureConfig} from './azure-config.ts';
+import {loadAzureConfig, saveAzureConfig} from './azure-config.ts';
 import {shapePullRequests, type RawPullRequest, type PrItem} from './forge.ts';
 
 const FORM = {'Content-Type': 'application/x-www-form-urlencoded'};
@@ -30,18 +31,49 @@ export function isAzureConnected(): boolean {
 	return loadAzureToken() !== null;
 }
 
-export async function requestDeviceCode(): Promise<DeviceCode> {
-	const res = await fetch(DEVICE_CODE_ENDPOINT, {
+// Tenant Entra de l'organisation : ADO l'annonce dans X-VSS-ResourceTenant,
+// même sans authentification. Indispensable aux invités B2B en OTP e-mail
+// (l'autorité /organizations les rejette avec AADSTS500346). null → repli.
+async function discoverTenant(organization: string): Promise<string | null> {
+	try {
+		const res = await fetch(`https://dev.azure.com/${organization}`, {
+			method: 'HEAD',
+			redirect: 'manual', // l'en-tête est sur la réponse ADO, pas après redirection
+		});
+		return parseTenantHeader(res.headers.get('x-vss-resourcetenant'));
+	} catch {
+		return null; // réseau — on tentera /organizations
+	}
+}
+
+// tenant à utiliser pour l'auth : config si déjà découvert, sinon découverte
+// (persistée pour les prochains lancements). undefined → /organizations.
+async function resolveTenant(): Promise<string | undefined> {
+	const cfg = loadAzureConfig();
+	if (!cfg) return undefined;
+	if (cfg.tenantId) return cfg.tenantId;
+	const tenant = await discoverTenant(cfg.organization);
+	if (tenant) saveAzureConfig({...cfg, tenantId: tenant});
+	return tenant ?? undefined;
+}
+
+export async function requestDeviceCode(): Promise<
+	DeviceCode & {tenant?: string}
+> {
+	const tenant = await resolveTenant();
+	const res = await fetch(deviceCodeEndpoint(tenant), {
 		method: 'POST',
 		headers: FORM,
 		body: buildDeviceCodeBody(),
 	});
 	if (!res.ok) throw new Error(`device-code refusé (${res.status})`);
-	return parseDeviceCode((await res.json()) as RawDeviceCode);
+	return {...parseDeviceCode((await res.json()) as RawDeviceCode), tenant};
 }
 
 // poll le token endpoint jusqu'à validation dans le navigateur (ou expiration).
-export async function pollDeviceToken(dc: DeviceCode): Promise<OAuthToken> {
+export async function pollDeviceToken(
+	dc: DeviceCode & {tenant?: string},
+): Promise<OAuthToken> {
 	const deadline = Date.now() + dc.expiresInMs;
 	let wait = dc.intervalMs;
 	while (Date.now() < deadline) {
@@ -55,7 +87,7 @@ export async function pollDeviceToken(dc: DeviceCode): Promise<OAuthToken> {
 		};
 		try {
 			// eslint-disable-next-line no-await-in-loop
-			const res = await fetch(AZURE_TOKEN_ENDPOINT, {
+			const res = await fetch(azureTokenEndpoint(dc.tenant), {
 				method: 'POST',
 				headers: FORM,
 				body: buildDeviceTokenBody(dc.deviceCode),
@@ -93,7 +125,7 @@ async function ensureAccessToken(): Promise<string> {
 
 	let res: Response;
 	try {
-		res = await fetch(AZURE_TOKEN_ENDPOINT, {
+		res = await fetch(azureTokenEndpoint(loadAzureConfig()?.tenantId), {
 			method: 'POST',
 			headers: FORM,
 			body: buildAzureRefreshBody(token.refreshToken),

@@ -34,6 +34,24 @@ test('saveAzureConfig puis loadAzureConfig : aller-retour', async () => {
 	});
 });
 
+test('tenantId : persisté et relu quand présent, absent sinon', async () => {
+	await withDir(async () => {
+		const {saveAzureConfig, loadAzureConfig} = await import(
+			`../src/core/azure-config.ts?${Math.random()}`
+		);
+		saveAzureConfig({
+			organization: 'org',
+			project: 'proj',
+			tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47',
+		});
+		assert.deepEqual(loadAzureConfig(), {
+			organization: 'org',
+			project: 'proj',
+			tenantId: '72f988bf-86f1-41af-91ab-2d7cd011db47',
+		});
+	});
+});
+
 test("l'environnement prime sur le fichier", async () => {
 	await withDir(async () => {
 		const {saveAzureConfig, loadAzureConfig} = await import(

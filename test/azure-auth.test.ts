@@ -7,6 +7,9 @@ import {
 	parseDeviceCode,
 	buildDeviceTokenBody,
 	buildAzureRefreshBody,
+	deviceCodeEndpoint,
+	azureTokenEndpoint,
+	parseTenantHeader,
 } from '../src/core/azure-auth.ts';
 
 test('buildDeviceCodeBody : client_id public VS + scope ADO + offline_access', () => {
@@ -51,4 +54,35 @@ test('buildAzureRefreshBody : grant_type refresh_token + scope', () => {
 	assert.equal(q.get('grant_type'), 'refresh_token');
 	assert.equal(q.get('refresh_token'), 'rt');
 	assert.ok(q.get('scope')?.includes('499b84ac'));
+});
+
+test('endpoints : tenant spécifique si fourni, sinon /organizations', () => {
+	assert.equal(
+		deviceCodeEndpoint(),
+		'https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode',
+	);
+	assert.equal(
+		azureTokenEndpoint(),
+		'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+	);
+	const t = '11111111-2222-3333-4444-555555555555';
+	assert.equal(
+		deviceCodeEndpoint(t),
+		`https://login.microsoftonline.com/${t}/oauth2/v2.0/devicecode`,
+	);
+	assert.equal(
+		azureTokenEndpoint(t),
+		`https://login.microsoftonline.com/${t}/oauth2/v2.0/token`,
+	);
+});
+
+test('parseTenantHeader : GUID accepté, absent/vide/zéros/bruit → null', () => {
+	const t = '72f988bf-86f1-41af-91ab-2d7cd011db47';
+	assert.equal(parseTenantHeader(t), t);
+	assert.equal(parseTenantHeader(` ${t.toUpperCase()} `), t.toLowerCase());
+	assert.equal(parseTenantHeader(null), null);
+	assert.equal(parseTenantHeader(''), null);
+	// orgs adossées à un compte Microsoft perso : GUID nul → repli /organizations
+	assert.equal(parseTenantHeader('00000000-0000-0000-0000-000000000000'), null);
+	assert.equal(parseTenantHeader('<html>page erreur</html>'), null);
 });
