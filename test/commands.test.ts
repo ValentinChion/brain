@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {parseCommand} from '../src/core/commands.ts';
+import {parseCommand, matchCommands} from '../src/core/commands.ts';
 
 test('parseCommand : /gauth reconnu (+ args, + trim)', () => {
 	assert.deepEqual(parseCommand('/gauth'), {name: 'gauth', args: []});
@@ -36,4 +36,25 @@ test('/changelog est une commande', () => {
 
 test('/stats est une commande', () => {
 	assert.deepEqual(parseCommand('/stats'), {name: 'stats', args: []});
+});
+
+test('matchCommands : préfixe → commandes filtrées, insensible à la casse', () => {
+	assert.equal(matchCommands('/').length, 6); // toutes
+	assert.deepEqual(
+		matchCommands('/ga').map(c => c.name),
+		['gauth'],
+	);
+	assert.deepEqual(
+		matchCommands('/GA').map(c => c.name),
+		['gauth'],
+	);
+	assert.ok(matchCommands('/prs')[0]?.description); // chaque commande est décrite
+});
+
+test('matchCommands : fermé hors frappe du nom de commande', () => {
+	assert.deepEqual(matchCommands(''), []);
+	assert.deepEqual(matchCommands('acheter du pain'), []);
+	assert.deepEqual(matchCommands('/etc'), []); // aucun préfixe → contenu normal
+	assert.deepEqual(matchCommands('/azure '), []); // espace → saisie des args
+	assert.deepEqual(matchCommands('/g\nx'), []); // retour-ligne = fermé aussi
 });
