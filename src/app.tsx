@@ -197,7 +197,12 @@ export default function App() {
 
 	const runAzure = async (args: string[]) => {
 		if (args.length >= 2) {
-			saveAzureConfig({organization: args[0], project: args[1]});
+			// le nom de projet peut contenir des espaces (« B2B Portal ») :
+			// tout ce qui suit l'organisation est le projet
+			saveAzureConfig({
+				organization: args[0],
+				project: args.slice(1).join(' '),
+			});
 		}
 
 		if (!loadAzureConfig()) {
