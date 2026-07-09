@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from 'react';
-import {useInput, useWindowSize, useApp} from 'ink';
+import {Box, useInput, useWindowSize, useApp} from 'ink';
 import type {Item, Note, Meeting} from './core/types.ts';
 import {todayYMD, stepReminder} from './core/date.ts';
 import {buildView, windowView, listRows, wrappedRows} from './core/view.ts';
@@ -42,7 +42,7 @@ import {
 } from './core/debrief.ts';
 import {notifyMeetingEnded} from './core/notify.ts';
 import {glyph, worldColor} from './core/theme.ts';
-import {parseCommand} from './core/commands.ts';
+import {parseCommand, matchCommands} from './core/commands.ts';
 import {isCtrlC} from './core/multiline.ts';
 import {
 	connect,
@@ -67,6 +67,7 @@ import StatsScreen from './components/templates/stats-screen.tsx';
 import ConnectPrompt from './components/organisms/connect-prompt.tsx';
 import DebriefView from './components/organisms/debrief-view.tsx';
 import InputBar from './components/molecules/input-bar.tsx';
+import CommandMenu from './components/molecules/command-menu.tsx';
 import ReminderStepper from './components/molecules/reminder-stepper.tsx';
 import HintBar from './components/molecules/hint-bar.tsx';
 import AgendaStatus, {
@@ -102,6 +103,7 @@ export default function App() {
 	const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 	const [selected, setSelected] = useState(0);
 	const [noteSelected, setNoteSelected] = useState(0);
+	const [menuIndex, setMenuIndex] = useState(0);
 
 	// balayage au démarrage : snapshot des notes périmées, figé au montage
 	const [sweepList] = useState(() =>
@@ -435,10 +437,18 @@ export default function App() {
 	// statut agenda+PRs (+marge), saisie (+marge, peut grandir en multi-lignes),
 	// hints (+marge), padding bas. Si ce décompte dévie du JSX d'AppLayout, la liste
 	// déborde du terminal et tout scrolle.
+	// menu de commandes : ouvert seulement en mode saisie, pendant la frappe du nom
+	const menuMatches =
+		mode === 'input'
+			? matchCommands(world === 'tasks' ? draft : noteDraft)
+			: [];
+	const menuOpen = menuMatches.length > 0;
+	const menuSel = Math.min(menuIndex, Math.max(0, menuMatches.length - 1));
 	const footerRows =
 		mode === 'reminder'
 			? 3
-			: (world === 'tasks' ? draft : noteDraft).split('\n').length;
+			: (world === 'tasks' ? draft : noteDraft).split('\n').length +
+			  menuMatches.length;
 	const chrome =
 		(compactHead ? 2 : 5) +
 		(loadError ? 1 : 0) +
@@ -461,6 +471,40 @@ export default function App() {
 	const noteRows = listRows(termRows, chrome + noteExtra, noteList.length);
 	const noteWin = windowView(noteList.length, noteSel, noteRows);
 	const shownNotes = noteList.slice(noteWin.start, noteWin.end);
+
+	// la sélection revient en tête à chaque frappe qui modifie le texte
+	const changeDraft = (v: string) => {
+		setDraft(v);
+		setMenuIndex(0);
+	};
+
+	const changeNoteDraft = (v: string) => {
+		setNoteDraft(v);
+		setMenuIndex(0);
+	};
+
+	const menuUp = () => {
+		setMenuIndex(Math.max(0, menuSel - 1));
+	};
+
+	const menuDown = () => {
+		setMenuIndex(Math.min(menuMatches.length - 1, menuSel + 1));
+	};
+
+	// Tab : complète le nom sélectionné dans la saisie (espace final → place aux args)
+	const completeCommand = () => {
+		const sel = menuMatches[menuSel];
+		if (!sel) return;
+		const next = '/' + sel.name + ' ';
+		if (world === 'tasks') setDraft(next);
+		else setNoteDraft(next);
+	};
+
+	// Échap : vide le brouillon, ce qui ferme le menu
+	const clearMenuDraft = () => {
+		if (world === 'tasks') setDraft('');
+		else setNoteDraft('');
+	};
 
 	// persiste à chaque changement
 	const commit = (next: Item[]) => {
@@ -533,6 +577,11 @@ export default function App() {
 	useInput(
 		(input, key) => {
 			if (key.tab || input === '[9u') {
+				if (menuOpen) {
+					completeCommand();
+					return;
+				}
+
 				setWorld(w => (w === 'tasks' ? 'notes' : 'tasks'));
 				setMode('input');
 			}
@@ -705,6 +754,14 @@ export default function App() {
 	);
 
 	const submitInput = (value: string) => {
+		// Entrée avec le menu ouvert : exécute la sélection (sans args)
+		if (menuOpen) {
+			const sel = menuMatches[menuSel];
+			if (sel) runCommand(sel.name, []);
+			setDraft('');
+			return;
+		}
+
 		const cmd = parseCommand(value);
 		if (cmd) {
 			runCommand(cmd.name, cmd.args);
@@ -731,6 +788,14 @@ export default function App() {
 	};
 
 	const submitNote = (value: string) => {
+		// Entrée avec le menu ouvert : exécute la sélection (sans args)
+		if (menuOpen) {
+			const sel = menuMatches[menuSel];
+			if (sel) runCommand(sel.name, []);
+			setNoteDraft('');
+			return;
+		}
+
 		const cmd = parseCommand(value);
 		if (cmd) {
 			runCommand(cmd.name, cmd.args);
@@ -852,32 +917,49 @@ export default function App() {
 			/>
 		);
 
+	const menuNode = menuOpen ? (
+		<CommandMenu
+			matches={menuMatches}
+			selected={menuSel}
+			accent={worldColor(world)}
+		/>
+	) : null;
+
 	const footer =
 		world === 'tasks' && mode === 'reminder' ? (
 			<ReminderStepper reminderValue={reminderValue} today={today} />
 		) : world === 'tasks' ? (
-			<InputBar
-				world="tasks"
-				editing={Boolean(editingId)}
-				value={draft}
-				focus={mode === 'input'}
-				placeholder="capturer une tâche / un feedback…"
-				onChange={setDraft}
-				onSubmit={submitInput}
-				onExitUp={exitToTaskNav}
-			/>
+			<Box flexDirection="column">
+				<InputBar
+					world="tasks"
+					editing={Boolean(editingId)}
+					value={draft}
+					focus={mode === 'input'}
+					placeholder="capturer une tâche / un feedback…"
+					onChange={changeDraft}
+					onSubmit={submitInput}
+					onCancel={menuOpen ? clearMenuDraft : undefined}
+					onExitUp={menuOpen ? menuUp : exitToTaskNav}
+					onExitDown={menuOpen ? menuDown : undefined}
+				/>
+				{menuNode}
+			</Box>
 		) : (
-			<InputBar
-				world="notes"
-				editing={Boolean(editingNoteId)}
-				value={noteDraft}
-				focus={mode === 'input'}
-				placeholder="capturer une note…"
-				onChange={setNoteDraft}
-				onSubmit={submitNote}
-				onCancel={cancelNote}
-				onExitUp={exitToNoteNav}
-			/>
+			<Box flexDirection="column">
+				<InputBar
+					world="notes"
+					editing={Boolean(editingNoteId)}
+					value={noteDraft}
+					focus={mode === 'input'}
+					placeholder="capturer une note…"
+					onChange={changeNoteDraft}
+					onSubmit={submitNote}
+					onCancel={menuOpen ? clearMenuDraft : cancelNote}
+					onExitUp={menuOpen ? menuUp : exitToNoteNav}
+					onExitDown={menuOpen ? menuDown : undefined}
+				/>
+				{menuNode}
+			</Box>
 		);
 
 	return (
@@ -908,7 +990,7 @@ export default function App() {
 			}
 			body={body}
 			footer={footer}
-			hints={<HintBar world={world} mode={mode} />}
+			hints={<HintBar world={world} mode={mode} menuOpen={menuOpen} />}
 		/>
 	);
 }
