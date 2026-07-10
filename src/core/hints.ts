@@ -3,12 +3,23 @@
 type World = 'tasks' | 'notes';
 type Mode = 'input' | 'nav' | 'reminder' | 'prnav';
 
-export function hint(world: World, mode: Mode, menuOpen = false): string {
+export function hint(
+	world: World,
+	mode: Mode,
+	menuOpen = false,
+	prExpanded = false,
+): string {
 	if (menuOpen) {
 		return '↑/↓ choisir · Entrée: exécuter · Tab: compléter · Échap: annuler';
 	}
 
-	if (mode === 'prnav') return '↑/↓ · o/Entrée: ouvrir · Échap: saisie';
+	// Le panneau PR n'a pas de ligne de hints à lui : ses deux états sont dits ici.
+	if (mode === 'prnav') {
+		return prExpanded
+			? '↑/↓ PR · ←/→ groupe · o/Entrée: ouvrir · Échap: replier'
+			: '←/→ groupe · Entrée: déplier · ↓ tâches · Échap: saisie';
+	}
+
 	if (world === 'tasks') {
 		if (mode === 'input') return 'Entrée: ajouter · ↑: naviguer · Tab: notes';
 		if (mode === 'nav') {

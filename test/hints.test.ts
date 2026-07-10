@@ -18,9 +18,20 @@ test('hint : menu de commandes ouvert → aide du menu, quel que soit le monde',
 	assert.equal(hint('notes', 'input', true), expected);
 });
 
-test('mode prnav : navigation + ouvrir', () => {
+test('mode prnav replié : groupes, déplier, descendre vers les tâches', () => {
 	assert.equal(
 		hint('tasks', 'prnav'),
-		'↑/↓ · o/Entrée: ouvrir · Échap: saisie',
+		'←/→ groupe · Entrée: déplier · ↓ tâches · Échap: saisie',
 	);
+});
+
+test('mode prnav déplié : items, groupes, ouvrir, replier', () => {
+	assert.equal(
+		hint('tasks', 'prnav', false, true),
+		'↑/↓ PR · ←/→ groupe · o/Entrée: ouvrir · Échap: replier',
+	);
+});
+
+test('menu de commandes ouvert : prioritaire sur prnav', () => {
+	assert.match(hint('tasks', 'prnav', true, true), /choisir/);
 });
