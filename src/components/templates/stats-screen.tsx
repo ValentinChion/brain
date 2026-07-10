@@ -1,16 +1,18 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 import type {HeatCell, Stats} from '../../core/stats.ts';
-import {color, glyph, statsPalette} from '../../core/theme.ts';
+import {statsChrome, statsPalette} from '../../core/theme.ts';
 
 // Rendu muet de `Stats` (calculé par stats.ts à l'ouverture) — zéro logique métier.
-// Esthétique néon volontairement en rupture : convoquer /stats fait événement.
+// Esthétique « braise » : chrome neutre, la couleur (rouge sombre → or) est
+// réservée aux données. Grille 2×2 : un panneau = une idée.
 
 export const STATS_MIN_ROWS = 22;
 const SPARK = '▁▂▃▄▅▆▇█';
-const neon = statsPalette[statsPalette.length - 1]; // cyan électrique
+const GAUGE_WIDTH = 14;
+const [, braise, orange, ambre, or] = statsPalette;
 
-// dégradé true-color caractère par caractère sur la rampe néon
+// dégradé true-color caractère par caractère sur la rampe braise
 function Gradient({text}: {text: string}) {
 	const chars = [...text];
 	return (
@@ -35,7 +37,7 @@ function Gradient({text}: {text: string}) {
 	);
 }
 
-// cellule de heatmap : futur → blanc, jour vide → point estompé, sinon palier néon
+// cellule de heatmap : futur → blanc, jour vide → point estompé, sinon palier braise
 function Cell({cell}: {cell: HeatCell | null}) {
 	if (cell === null) return <Text> </Text>;
 	if (cell.level === 0) return <Text dimColor>· </Text>;
@@ -53,13 +55,91 @@ function Spark({counts, tint}: {counts: number[]; tint: string}) {
 	);
 }
 
-function Label({children}: {children: string}) {
-	// libellé de zone : largeur fixe pour aligner les contenus
-	return <Text dimColor>{children.padEnd(11)}</Text>;
+// jauge de série : remplissage en dégradé braise fixe (l'or n'apparaît qu'au bout)
+function Gauge({filled}: {filled: number}) {
+	return (
+		<>
+			<Text>
+				{Array.from({length: filled}, (_, i) => (
+					<Text
+						key={i}
+						color={
+							statsPalette[
+								Math.min(
+									statsPalette.length - 1,
+									Math.floor((i / GAUGE_WIDTH) * statsPalette.length),
+								)
+							]
+						}
+					>
+						█
+					</Text>
+				))}
+			</Text>
+			<Text dimColor>{'░'.repeat(GAUGE_WIDTH - filled)}</Text>
+		</>
+	);
+}
+
+// panneau de la grille : chrome neutre, titre en gras
+function Panel({title, children}: {title: string; children: React.ReactNode}) {
+	return (
+		<Box
+			flexDirection="column"
+			flexGrow={1}
+			flexBasis={0}
+			borderStyle="round"
+			borderColor={statsChrome}
+			paddingX={1}
+		>
+			<Text bold>{title}</Text>
+			{children}
+		</Box>
+	);
+}
+
+function FluxRow({
+	label,
+	counts,
+	total,
+	tint,
+}: {
+	label: string;
+	counts: number[];
+	total: number;
+	tint: string;
+}) {
+	return (
+		<Box>
+			<Text dimColor>{label.padEnd(9)}</Text>
+			<Spark counts={counts} tint={tint} />
+			<Text bold color={tint}>
+				{String(total).padStart(4)}
+			</Text>
+		</Box>
+	);
+}
+
+function RecordRow({label, value}: {label: string; value: string}) {
+	return (
+		<Box>
+			<Text dimColor>{label.padEnd(16)}</Text>
+			<Text bold color={or}>
+				{value}
+			</Text>
+		</Box>
+	);
 }
 
 const formatDays = (n: number | null) =>
 	n === null ? '—' : n < 1 ? '<1 j' : `${Math.round(n)} j`;
+
+// 'L M M J V S D' — lettre du jour d'une date AAAA-MM-JJ (semaine française)
+const DAY_LETTERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+function dayLetter(ymd: string): string {
+	const [y, m, d] = ymd.split('-').map(Number);
+	return DAY_LETTERS[(new Date(y, m - 1, d).getDay() + 6) % 7];
+}
 
 export default function StatsScreen({
 	stats,
@@ -82,130 +162,169 @@ export default function StatsScreen({
 	}
 
 	const {heatmap, flux, records, worlds} = stats;
-	const heatRows =
-		heatmap.kind === 'band'
-			? [heatmap.cells]
-			: Array.from({length: 7}, (_, i) => heatmap.weeks.map(w => w[i]));
+
+	// jauge de série : progression vers le record (pleine si record en cours)
+	const gaugeMax = Math.max(records.longestStreak, stats.streak, 1);
+	const filled =
+		stats.streak === 0
+			? 0
+			: Math.max(1, Math.round((stats.streak / gaugeMax) * GAUGE_WIDTH));
+	const recordEnCours = stats.streak > 0 && stats.streak >= gaugeMax;
+
+	const today = new Intl.DateTimeFormat('fr-FR', {
+		weekday: 'short',
+		day: 'numeric',
+		month: 'short',
+	}).format(new Date());
 
 	return (
 		<Box flexDirection="column" paddingX={1}>
-			<Box
-				alignSelf="flex-start"
-				paddingX={2}
-				borderColor={statsPalette[1]}
-				borderStyle={{
-					topLeft: '▛',
-					top: '▀',
-					topRight: '▜',
-					left: '▌',
-					right: '▐',
-					bottomLeft: '▙',
-					bottom: '▄',
-					bottomRight: '▟',
-				}}
-			>
-				<Gradient text="B R A I N ⚡ S T A T S" />
+			<Box justifyContent="space-between">
+				<Gradient text="░▒▓█  S T A T S  █▓▒░" />
+				<Text dimColor>{today}</Text>
 			</Box>
 
-			<Box marginTop={1}>
-				<Text>🔥 </Text>
-				<Text bold color={neon}>
-					{stats.streak} j
-				</Text>
-				<Text dimColor> de série · </Text>
-				<Text bold color={statsPalette[3]}>
-					{stats.captured}
-				</Text>
-				<Text dimColor> captées · </Text>
-				<Text bold color={statsPalette[2]}>
-					{stats.finished}
-				</Text>
-				<Text dimColor> finies · </Text>
-				<Text bold color={statsPalette[1]}>
-					{worlds.openTasks}
-				</Text>
-				<Text dimColor> ouvertes</Text>
-			</Box>
-
-			<Box marginTop={1} flexDirection="column">
-				{heatRows.map((row, i) => (
-					// eslint-disable-next-line react/no-array-index-key
-					<Box key={i}>
-						<Label>{i === 0 ? 'activité' : ''}</Label>
-						{row.map((cell, j) => (
-							// eslint-disable-next-line react/no-array-index-key
-							<Cell key={j} cell={cell} />
-						))}
+			<Box gap={1} marginTop={1}>
+				<Panel title="🔥 SÉRIE">
+					<Box marginTop={1}>
+						{/* Texts imbriqués (pas frères) : sinon flexbox écrase le chiffre */}
+						<Text>
+							<Text bold color={or}>
+								{stats.streak}
+							</Text>
+							{` jour${stats.streak > 1 ? 's' : ''} d’affilée`}
+							<Text dimColor> · {stats.captured} captées</Text>
+						</Text>
 					</Box>
-				))}
+					<Box marginTop={1}>
+						<Gauge filled={filled} />
+						{recordEnCours ? (
+							<Text bold color={ambre}>
+								{' '}
+								record en cours !
+							</Text>
+						) : (
+							<Text dimColor> record {records.longestStreak} j</Text>
+						)}
+					</Box>
+				</Panel>
+
+				<Panel title="⚡ FLUX · 7 jours">
+					<Box flexDirection="column" gap={1} marginTop={1}>
+						<FluxRow
+							label="entrées"
+							counts={flux.days.map(d => d.captured)}
+							total={flux.captured}
+							tint={orange}
+						/>
+						<FluxRow
+							label="sorties"
+							counts={flux.days.map(d => d.finished)}
+							total={flux.finished}
+							tint={or}
+						/>
+						<Box>
+							<Text dimColor>{'backlog'.padEnd(9)}</Text>
+							{flux.delta === 0 ? (
+								<Text dimColor>= stable</Text>
+							) : flux.delta > 0 ? (
+								<Text color={braise}>↗ +{flux.delta} (ça s’empile)</Text>
+							) : (
+								<Text color={or}>↘ {flux.delta} (tu vides)</Text>
+							)}
+						</Box>
+					</Box>
+				</Panel>
 			</Box>
 
-			<Box marginTop={1}>
-				<Label>flux 7 j</Label>
-				<Text dimColor>captées </Text>
-				<Spark counts={flux.days.map(d => d.captured)} tint={neon} />
-				<Text color={neon}> {flux.captured}</Text>
-				<Text dimColor> · finies </Text>
-				<Spark counts={flux.days.map(d => d.finished)} tint={statsPalette[2]} />
-				<Text color={statsPalette[2]}> {flux.finished}</Text>
-				<Text dimColor> · </Text>
-				{flux.delta === 0 ? (
-					<Text dimColor>= stable</Text>
-				) : (
-					<Text color={flux.delta > 0 ? statsPalette[2] : neon}>
-						{flux.delta > 0 ? glyph.moreUp : glyph.moreDown}{' '}
-						{flux.delta > 0 ? '+' : ''}
-						{flux.delta} backlog
-					</Text>
-				)}
+			<Box gap={1}>
+				<Panel title="▦ ACTIVITÉ">
+					<Box flexDirection="column" marginTop={1}>
+						{heatmap.kind === 'band' ? (
+							<>
+								<Box>
+									{heatmap.cells.map(cell => (
+										<Cell key={cell.d} cell={cell} />
+									))}
+								</Box>
+								<Box>
+									{heatmap.cells.map(cell => (
+										<Text key={cell.d} dimColor>
+											{dayLetter(cell.d)}{' '}
+										</Text>
+									))}
+								</Box>
+							</>
+						) : (
+							Array.from({length: 7}, (_, i) => (
+								<Box key={i}>
+									<Text dimColor>{DAY_LETTERS[i]} </Text>
+									{heatmap.weeks.map((w, j) => (
+										// eslint-disable-next-line react/no-array-index-key
+										<Cell key={j} cell={w[i]} />
+									))}
+								</Box>
+							))
+						)}
+						<Box marginTop={1}>
+							<Text dimColor>capture → done : </Text>
+							<Text bold color={or}>
+								{formatDays(stats.medianLifeDays)}
+							</Text>
+							<Text dimColor> (médiane)</Text>
+						</Box>
+					</Box>
+				</Panel>
+
+				<Panel title="🏆 RECORDS">
+					<Box flexDirection="column" marginTop={1}>
+						<RecordRow
+							label="meilleur jour"
+							value={
+								records.bestDay
+									? `${records.bestDay.count} (${records.bestDay.d.slice(5)})`
+									: '—'
+							}
+						/>
+						<RecordRow
+							label="série max"
+							value={
+								records.longestStreak > 0 ? `${records.longestStreak} j` : '—'
+							}
+						/>
+						<RecordRow
+							label="+ vieille close"
+							value={formatDays(records.oldestClosedDays)}
+						/>
+						<Box marginTop={1}>
+							<Text>
+								<Text bold color={or}>
+									{worlds.openTasks}
+								</Text>
+								<Text dimColor> tâches · </Text>
+								<Text bold color={or}>
+									{worlds.notes}
+								</Text>
+								<Text dimColor> notes</Text>
+								{worlds.pinned > 0 && (
+									<Text dimColor> ({worlds.pinned} ◆)</Text>
+								)}
+								{prCount !== null && (
+									<>
+										<Text dimColor> · </Text>
+										<Text bold color={or}>
+											{prCount}
+										</Text>
+										<Text dimColor> PRs</Text>
+									</>
+								)}
+							</Text>
+						</Box>
+					</Box>
+				</Panel>
 			</Box>
 
-			<Box marginTop={1}>
-				<Label>digestion</Label>
-				<Text dimColor>médiane capture → done : </Text>
-				<Text bold color={neon}>
-					{formatDays(stats.medianLifeDays)}
-				</Text>
-			</Box>
-
-			<Box marginTop={1}>
-				<Label>records</Label>
-				<Text dimColor>meilleur jour </Text>
-				<Text bold color={statsPalette[3]}>
-					{records.bestDay
-						? `${records.bestDay.count} (${records.bestDay.d.slice(5)})`
-						: '—'}
-				</Text>
-				<Text dimColor> · série max </Text>
-				<Text bold color={statsPalette[3]}>
-					{records.longestStreak > 0 ? `${records.longestStreak} j` : '—'}
-				</Text>
-				<Text dimColor> · plus vieille close </Text>
-				<Text bold color={statsPalette[3]}>
-					{formatDays(records.oldestClosedDays)}
-				</Text>
-			</Box>
-
-			<Box marginTop={1}>
-				<Label>mondes</Label>
-				<Text color={color.task}>{worlds.openTasks} tâches ouvertes</Text>
-				<Text dimColor> · </Text>
-				<Text color={color.note}>{worlds.notes} notes</Text>
-				{worlds.pinned > 0 && (
-					<Text color={color.pinned}>
-						{' '}
-						({worlds.pinned} {glyph.pin})
-					</Text>
-				)}
-				{prCount !== null && (
-					<>
-						<Text dimColor> · </Text>
-						<Text color={color.pr}>{prCount} PRs</Text>
-					</>
-				)}
-			</Box>
-
-			<Box marginTop={1}>
+			<Box justifyContent="flex-end">
 				<Text dimColor>[Échap] fermer</Text>
 			</Box>
 		</Box>

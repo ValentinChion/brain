@@ -31,12 +31,15 @@ export const glyph = {
 export const worldColor = (world: 'tasks' | 'notes') =>
 	world === 'tasks' ? color.task : color.note;
 
-// écran /stats : néon true-color assumé, en rupture avec la sobriété ambiante.
-// 5 paliers d'intensité, du violet profond au cyan électrique (heatmap + dégradés).
+// écran /stats : palette « braise » true-color, assortie au 🔥 de la série.
+// 5 paliers d'intensité, du rouge sombre à l'or vif (heatmap, jauge, dégradés).
+// La couleur est réservée aux données ; le chrome (bordures) reste neutre.
 export const statsPalette = [
-	'#4c1d95',
-	'#7c3aed',
-	'#c026d3',
-	'#e879f9',
-	'#22d3ee',
+	'#7f1d1d',
+	'#c2410c',
+	'#ea580c',
+	'#f59e0b',
+	'#fbbf24',
 ] as const;
+
+export const statsChrome = '#52525b'; // bordures des panneaux /stats
