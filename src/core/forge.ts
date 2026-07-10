@@ -47,7 +47,16 @@ function kindOf(
 	return me && (me.vote ?? 0) === 0 ? 'review-requested' : null;
 }
 
-const rank = (k: PrKind): number => (k === 'review-requested' ? 0 : 1);
+// Ordre d'affichage du panneau PR. Source unique : le tri de shapePullRequests
+// et le groupement de groupPrs lisent le même tableau.
+const ORDER: readonly PrKind[] = [
+	'review-requested',
+	'changes-requested',
+	'ci-failed',
+	'approved',
+];
+
+const rank = (k: PrKind): number => ORDER.indexOf(k);
 
 export function shapePullRequests(
 	raw: readonly RawPullRequest[],
@@ -81,4 +90,16 @@ export function shapePullRequests(
 export function ageDays(createdAt: string, nowISO: string): number {
 	const ms = new Date(nowISO).getTime() - new Date(createdAt).getTime();
 	return Math.max(0, Math.floor(ms / 86_400_000));
+}
+
+export type PrGroup = {kind: PrKind; items: PrItem[]};
+
+// Regroupement stable par genre, dans l'ordre du panneau. Les genres sans PR
+// sont omis : un compteur à zéro n'a rien à dire. L'identité d'un groupe est
+// son `kind` (jamais son index) — un sondage peut en faire disparaître un.
+export function groupPrs(prs: readonly PrItem[]): PrGroup[] {
+	return ORDER.map(kind => ({
+		kind,
+		items: prs.filter(p => p.kind === kind),
+	})).filter(g => g.items.length > 0);
 }
