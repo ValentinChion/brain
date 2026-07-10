@@ -26,12 +26,14 @@ export default function AgendaStatus({
 }) {
 	if (state === 'connecting') {
 		return (
-			<Text dimColor>🗓 ouverture du navigateur… autorise dans l’onglet</Text>
+			<Text color={color.dim}>
+				🗓 ouverture du navigateur… autorise dans l’onglet
+			</Text>
 		);
 	}
 
 	if (state === 'disconnected') {
-		return <Text dimColor>🗓 agenda non connecté · /gauth</Text>;
+		return <Text color={color.dim}>🗓 agenda non connecté · /gauth</Text>;
 	}
 
 	if (state === 'error') {
@@ -41,10 +43,11 @@ export default function AgendaStatus({
 	}
 
 	const {count, next} = summary(meetings, nowISO);
-	if (count === 0) return <Text dimColor>🗓 aucune réunion aujourd’hui</Text>;
+	if (count === 0)
+		return <Text color={color.dim}>🗓 aucune réunion aujourd’hui</Text>;
 
 	return (
-		<Text dimColor>
+		<Text color={color.dim}>
 			🗓 {count} réunion{count > 1 ? 's' : ''} aujourd’hui
 			{next ? ` · prochaine ${hhmm(next.start)} ${next.title}` : ''}
 		</Text>

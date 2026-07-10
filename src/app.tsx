@@ -41,7 +41,7 @@ import {
 	lastDebriefable,
 } from './core/debrief.ts';
 import {notifyMeetingEnded} from './core/notify.ts';
-import {glyph, worldColor} from './core/theme.ts';
+import {worldColor} from './core/theme.ts';
 import {parseCommand, matchCommands} from './core/commands.ts';
 import {isCtrlC} from './core/multiline.ts';
 import {
@@ -57,7 +57,7 @@ import {
 	fetchActionablePrs,
 } from './core/azure-client.ts';
 import {loadAzureConfig, saveAzureConfig} from './core/azure-config.ts';
-import type {PrItem} from './core/forge.ts';
+import {groupPrs, type PrItem, type PrKind} from './core/forge.ts';
 import PrSection, {type AzState} from './components/molecules/pr-section.tsx';
 import TasksBody from './components/organisms/tasks-body.tsx';
 import NotesBody from './components/organisms/notes-body.tsx';
@@ -171,6 +171,11 @@ export default function App() {
 	const [azCode, setAzCode] = useState<string | null>(null);
 	const [azError, setAzError] = useState<string | null>(null);
 	const [prs, setPrs] = useState<PrItem[]>([]);
+	// L'identité d'un groupe est son genre, jamais son index : un sondage peut le
+	// faire disparaître (une PR approuvée pendant qu'on la regarde). Le focus et
+	// le dépli sont donc résolus à chaque rendu contre les groupes courants.
+	const [prFocus, setPrFocus] = useState<PrKind | null>(null);
+	const [prExpanded, setPrExpanded] = useState(false);
 	const [prSelected, setPrSelected] = useState(0);
 
 	const refreshPrs = async () => {
@@ -397,6 +402,20 @@ export default function App() {
 	const noteList = sortNotes(notes);
 	const noteSel = Math.min(noteSelected, Math.max(0, noteList.length - 1));
 
+	// --- dérivés PR : purs, recalculés à chaque rendu contre des `prs` frais.
+	// Si le genre focusé a disparu (dernière PR traitée), on retombe sur le
+	// premier groupe et le dépli s'annule tout seul — sans effet ni setState. ---
+	const groups = groupPrs(prs);
+	const focusIdx = Math.max(
+		0,
+		groups.findIndex(g => g.kind === prFocus),
+	);
+	const openGroup = prExpanded ? groups[focusIdx] : undefined;
+	const prExpandedNow = Boolean(openGroup);
+	const prSel = openGroup
+		? Math.min(prSelected, openGroup.items.length - 1)
+		: 0;
+
 	// --- ligne sélectionnée dépliée : la liste tronque, la sélection montre tout.
 	// Les mesures reflètent la composition des composants (row/note-row/pr-section) ;
 	// approximation ligne rendue ≈ texte + suffixes, gouttière déduite de la largeur.
@@ -418,26 +437,22 @@ export default function App() {
 				cols - 3,
 		  ) - 1
 		: 0;
-	const selPr =
-		mode === 'prnav'
-			? prs[Math.min(prSelected, Math.max(0, prs.length - 1))]
-			: undefined;
+	const selPr = openGroup?.items[prSel];
+	// largeur utile dans un panneau : bordures 2 + paddingX 1×2 + paddingX
+	// d'AppLayout 1×2 = 6 ; moins la gouttière « ❯ ⇄ » ≈ 4.
 	const prExtra = selPr
-		? wrappedRows(
-				`changements demandés  · ${selPr.title} (${selPr.author}) · 99j`,
-				cols - 4,
-		  ) - 1
+		? wrappedRows(`${selPr.title} (${selPr.author}) · 99j`, cols - 10) - 1
 		: 0;
 
-	// lignes occupées par la section PRs (statut ou lignes de PR, + sélection dépliée)
-	const prRows =
-		(azState === 'off'
-			? 0
-			: azState === 'connected'
-			? prs.length + (azError ? 1 : 0)
-			: 1) + prExtra;
-	// masthead compact (1 ligne au lieu du sprite 4 lignes) sous 20 lignes de haut
-	const compactHead = termRows < 20;
+	// le panneau PR existe sauf : Azure éteint, ou connecté sans PR ni erreur
+	const prPanel =
+		azState !== 'off' &&
+		(azState !== 'connected' || groups.length > 0 || Boolean(azError));
+	const prRows = prPanel
+		? openGroup
+			? 3 + openGroup.items.length + prExtra // bordures 2 + compteurs 1 + items
+			: 3 + (azState === 'connected' && azError ? 1 : 0)
+		: 0;
 	// chrome hors liste, compté ligne à ligne : masthead (+marge), erreur éventuelle,
 	// statut agenda+PRs (+marge), saisie (+marge, peut grandir en multi-lignes),
 	// hints (+marge), padding bas. Si ce décompte dévie du JSX d'AppLayout, la liste
@@ -454,20 +469,13 @@ export default function App() {
 			? 3
 			: (world === 'tasks' ? draft : noteDraft).split('\n').length +
 			  menuMatches.length;
+	//   6 masthead (sprite 4 + filet 1 + marge 1)
+	//   2 bordures du panneau du corps
 	const chrome =
-		(compactHead ? 2 : 5) +
-		(loadError ? 1 : 0) +
-		(2 + prRows) +
-		(1 + footerRows) +
-		2 +
-		1;
-	// bannière signature « ressort aujourd'hui » : label + filet qui remplit la largeur
-	const dueLabel = ` ${glyph.moreUp} ressort aujourd'hui `;
-	const dueRule =
-		dueLabel + glyph.rule.repeat(Math.max(4, cols - dueLabel.length - 2));
+		6 + (loadError ? 1 : 0) + (2 + prRows) + 2 + (1 + footerRows) + 2 + 1;
 	const taskRows = listRows(
 		termRows,
-		// + bannière jaune éventuelle + lignes supplémentaires de la sélection dépliée
+		// + entête « N ressortent » éventuel + lignes de la sélection dépliée
 		chrome + (view.due.length > 0 ? 1 : 0) + taskExtra,
 		visible.length,
 	);
@@ -632,10 +640,16 @@ export default function App() {
 					if (clampedSel >= visible.length - 1) setMode('input');
 					else setSelected(clampedSel + 1);
 				} else if (key.upArrow) {
-					// la section PRs n'est navigable que si elle affiche ses lignes
+					// le panneau PR n'est navigable que s'il affiche ses compteurs
 					// (état connecté) — sinon on naviguerait des lignes invisibles
-					if (clampedSel === 0 && prs.length > 0 && azState === 'connected') {
-						setPrSelected(prs.length - 1);
+					if (
+						clampedSel === 0 &&
+						groups.length > 0 &&
+						azState === 'connected'
+					) {
+						// premier compteur : pas de « plus proche » sur un axe horizontal
+						setPrFocus(groups[0].kind);
+						setPrExpanded(false);
 						setMode('prnav');
 					} else {
 						setSelected(Math.max(0, clampedSel - 1));
@@ -663,24 +677,44 @@ export default function App() {
 		{isActive: world === 'tasks' && !blocked},
 	);
 
-	// --- Navigation dans la section PRs (o/Entrée ouvre dans le navigateur) ---
+	// --- Panneau PR : un seul curseur, deux axes qui ne se recouvrent jamais.
+	// ←/→ changent de groupe (et déplient le voisin si on était déplié) ;
+	// ↑/↓ n'existent que déplié, dans les items. La ligne des compteurs n'est
+	// jamais focusable, donc `Entrée` n'est jamais ambigu. ---
 	useInput(
 		(input, key) => {
-			const clamped = Math.min(prSelected, Math.max(0, prs.length - 1));
-			if (key.escape || prs.length === 0) {
+			if (groups.length === 0) {
 				setMode('input');
+				return;
+			}
+
+			if (key.escape) {
+				if (prExpandedNow) setPrExpanded(false);
+				else setMode('input');
+			} else if (key.leftArrow || key.rightArrow) {
+				const next = Math.min(
+					groups.length - 1,
+					Math.max(0, focusIdx + (key.rightArrow ? 1 : -1)),
+				);
+				setPrFocus(groups[next].kind);
+				setPrSelected(0);
 			} else if (key.downArrow) {
-				if (clamped >= prs.length - 1) {
+				// déplié : on descend dans les items, puis on tombe dans les tâches
+				if (openGroup && prSel < openGroup.items.length - 1) {
+					setPrSelected(prSel + 1);
+				} else {
+					setPrExpanded(false);
 					setSelected(0);
 					setMode('nav');
-				} else {
-					setPrSelected(clamped + 1);
 				}
-			} else if (key.upArrow) {
-				setPrSelected(Math.max(0, clamped - 1));
-			} else if (input === 'o' || key.return) {
-				const target = prs[clamped];
-				if (target?.url) openBrowser(target.url);
+			} else if (key.upArrow && openGroup) {
+				setPrSelected(Math.max(0, prSel - 1));
+			} else if (key.return && !prExpandedNow) {
+				setPrFocus(groups[focusIdx].kind);
+				setPrExpanded(true);
+				setPrSelected(0);
+			} else if (prExpandedNow && (key.return || input === 'o') && selPr?.url) {
+				openBrowser(selPr.url);
 			}
 		},
 		{isActive: world === 'tasks' && mode === 'prnav' && !blocked},
@@ -833,9 +867,10 @@ export default function App() {
 		if (visible.length > 0) {
 			setSelected(visible.length - 1);
 			setMode('nav');
-		} else if (prs.length > 0 && azState === 'connected') {
+		} else if (groups.length > 0 && azState === 'connected') {
 			// pas de tâches mais des PRs : ↑ depuis la saisie doit pouvoir les atteindre
-			setPrSelected(prs.length - 1);
+			setPrFocus(groups[0].kind);
+			setPrExpanded(false);
 			setMode('prnav');
 		}
 	};
@@ -905,8 +940,7 @@ export default function App() {
 				shown={shown}
 				start={start}
 				end={end}
-				due={view.due}
-				dueRule={dueRule}
+				dueCount={view.due.length}
 				today={today}
 				active={mode !== 'input'}
 				selectedId={visible[clampedSel]?.id}
@@ -970,8 +1004,6 @@ export default function App() {
 	return (
 		<AppLayout
 			termRows={termRows}
-			compact={compactHead}
-			accent={worldColor(world)}
 			label={world === 'tasks' ? 'TÂCHES' : 'NOTES'}
 			loadError={loadError}
 			status={
@@ -986,16 +1018,25 @@ export default function App() {
 						state={azState}
 						code={azCode}
 						error={azError}
-						prs={prs}
+						groups={groups}
 						nowISO={nowISO()}
 						active={mode === 'prnav'}
-						selected={Math.min(prSelected, Math.max(0, prs.length - 1))}
+						focusIdx={focusIdx}
+						expanded={prExpandedNow}
+						selected={prSel}
 					/>
 				</>
 			}
 			body={body}
 			footer={footer}
-			hints={<HintBar world={world} mode={mode} menuOpen={menuOpen} />}
+			hints={
+				<HintBar
+					world={world}
+					mode={mode}
+					menuOpen={menuOpen}
+					prExpanded={prExpandedNow}
+				/>
+			}
 		/>
 	);
 }

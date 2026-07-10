@@ -15,7 +15,7 @@ export default function ReminderStepper({
 			<Text>
 				{glyph.stepLeft} {reminderValue ?? today} {glyph.stepRight}
 			</Text>
-			<Text dimColor>
+			<Text color={color.dim}>
 				←/→ ±1 j · ↑/↓ ±1 sem · ⌫ retirer · ↵ ok · esc annuler
 			</Text>
 		</Box>

@@ -7,17 +7,19 @@ import Masthead from '../molecules/masthead.tsx';
 export default function ConnectPrompt({loadError}: {loadError: string | null}) {
 	return (
 		<Box flexDirection="column">
-			<Masthead accent={color.task} label="AGENDA" />
+			<Masthead label="AGENDA" />
 			<Box flexDirection="column" paddingX={1} paddingBottom={1}>
 				{loadError && <Text color={color.danger}>{loadError}</Text>}
 				<Box flexDirection="column" marginTop={1}>
 					<Text color={color.task}>Connecter ton agenda Google ?</Text>
-					<Text dimColor>
+					<Text color={color.dim}>
 						Ouvre le navigateur pour autoriser la lecture de tes réunions du
 						jour.
 					</Text>
 					<Box marginTop={1}>
-						<Text dimColor>[o] oui · [n] plus tard (rejouable via /gauth)</Text>
+						<Text color={color.faint}>
+							[o] oui · [n] plus tard (rejouable via /gauth)
+						</Text>
 					</Box>
 				</Box>
 			</Box>

@@ -1,6 +1,6 @@
 import React from 'react';
 import {Box, Text} from 'ink';
-import {glyph} from '../../core/theme.ts';
+import {color, glyph} from '../../core/theme.ts';
 import type {CommandInfo} from '../../core/commands.ts';
 
 // Menu des commandes sous la barre de saisie : affichage pur — la sélection et
@@ -26,7 +26,7 @@ export default function CommandMenu({
 					>
 						{i === selected ? glyph.caret : ' '} /{m.name.padEnd(width)}
 					</Text>
-					<Text dimColor> {m.description}</Text>
+					<Text color={color.dim}> {m.description}</Text>
 				</Box>
 			))}
 		</Box>

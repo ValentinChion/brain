@@ -21,14 +21,14 @@ export default function Row({
 			<Text color={color.task}>{selected ? `${glyph.caret} ` : '  '}</Text>
 			<Text color={due ? color.resurface : undefined}>{item.text}</Text>
 			{item.remindOn && (
-				<Text color={due ? color.resurface : undefined} dimColor={!due}>
+				<Text color={due ? color.resurface : color.dim}>
 					{'  '}
 					{glyph.bullet}
 					{item.remindOn.slice(5)}
 				</Text>
 			)}
 			{item.source && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					{'  '}
 					{glyph.bullet} {item.source}
 				</Text>

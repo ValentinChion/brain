@@ -18,7 +18,7 @@ export default function SweepView({
 	const current = list[index];
 	return (
 		<Box flexDirection="column">
-			<Masthead accent={color.note} label="MÉNAGE" />
+			<Masthead label="MÉNAGE" />
 			<Box flexDirection="column" paddingX={1} paddingBottom={1}>
 				{loadError && <Text color={color.danger}>{loadError}</Text>}
 				{mode === 'bulk' ? (
@@ -28,18 +28,18 @@ export default function SweepView({
 							semaine :
 						</Text>
 						{list.slice(0, 8).map(note => (
-							<Text key={note.id} dimColor>
+							<Text key={note.id} color={color.dim}>
 								{'  · '}
 								{note.text.split('\n')[0]}
 							</Text>
 						))}
 						{list.length > 8 && (
-							<Text dimColor>
+							<Text color={color.dim}>
 								{'  '}… et {list.length - 8} autres
 							</Text>
 						)}
 						<Box marginTop={1}>
-							<Text dimColor>
+							<Text color={color.dim}>
 								[d] tout supprimer · [k] tout garder · [r] passer en revue
 							</Text>
 						</Box>
@@ -51,7 +51,9 @@ export default function SweepView({
 						</Text>
 						<Text>{current?.text ?? ''}</Text>
 						<Box marginTop={1}>
-							<Text dimColor>[k] garder · [d] supprimer · [p] épingler</Text>
+							<Text color={color.faint}>
+								[k] garder · [d] supprimer · [p] épingler
+							</Text>
 						</Box>
 					</Box>
 				)}

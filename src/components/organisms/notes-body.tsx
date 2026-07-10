@@ -1,7 +1,7 @@
 import React from 'react';
 import {Box, Text} from 'ink';
 import type {Note} from '../../core/types.ts';
-import {glyph} from '../../core/theme.ts';
+import {color, glyph} from '../../core/theme.ts';
 import NoteRow from '../atoms/note-row.tsx';
 
 export default function NotesBody({
@@ -22,12 +22,12 @@ export default function NotesBody({
 	return (
 		<Box flexDirection="column">
 			{list.length === 0 && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					Aucune note. Écris ci-dessous, ou Tab pour les tâches.
 				</Text>
 			)}
 			{start > 0 && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					{glyph.moreUp} {start} de plus
 				</Text>
 			)}
@@ -39,7 +39,7 @@ export default function NotesBody({
 				/>
 			))}
 			{end < list.length && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					{glyph.moreDown} {list.length - end} de plus
 				</Text>
 			)}

@@ -23,11 +23,11 @@ export default function ChangelogView({
 		.map((line, i) => ({line, n: offset + i}));
 	return (
 		<Box flexDirection="column">
-			<Masthead accent={color.task} label="NOUVEAUTÉS" />
+			<Masthead label="NOUVEAUTÉS" />
 			<Box flexDirection="column" paddingX={1} paddingBottom={1}>
 				{loadError && <Text color={color.danger}>{loadError}</Text>}
 				{offset > 0 && (
-					<Text dimColor>
+					<Text color={color.dim}>
 						{glyph.moreUp} {offset} au-dessus
 					</Text>
 				)}
@@ -42,12 +42,12 @@ export default function ChangelogView({
 					</Text>
 				))}
 				{end < lines.length && (
-					<Text dimColor>
+					<Text color={color.dim}>
 						{glyph.moreDown} {lines.length - end} de plus
 					</Text>
 				)}
 				<Box marginTop={1}>
-					<Text dimColor>↑↓ défiler · [Entrée/Échap] fermer</Text>
+					<Text color={color.faint}>↑↓ défiler · [Entrée/Échap] fermer</Text>
 				</Box>
 			</Box>
 		</Box>

@@ -29,7 +29,7 @@ export default function DebriefView({
 		phase === 'actions' ? '✅ Actions à faire ?' : '📝 Infos à garder ?';
 	return (
 		<Box flexDirection="column" height={termRows}>
-			<Masthead accent={accent} label="DEBRIEF" />
+			<Masthead label="DEBRIEF" />
 			<Box flexDirection="column" paddingX={1} paddingBottom={1}>
 				<Text color={accent}>
 					{meeting.title}
@@ -50,7 +50,7 @@ export default function DebriefView({
 					/>
 				</Box>
 				<Box marginTop={1}>
-					<Text dimColor>
+					<Text color={color.dim}>
 						Entrée: valider · Shift+Entrée: ligne · Échap: passer la réunion
 					</Text>
 				</Box>

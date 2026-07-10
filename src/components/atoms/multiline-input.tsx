@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {Text, useInput} from 'ink';
+import {color} from '../../core/theme.ts';
 import {
 	decodeKey,
 	applyEdit,
@@ -84,7 +85,7 @@ export default function MultilineInput({
 	// hors focus : rendu simple (pas de curseur).
 	if (!focus) {
 		return value.length === 0 ? (
-			<Text dimColor>{placeholder}</Text>
+			<Text color={color.faint}>{placeholder}</Text>
 		) : (
 			<Text>{value}</Text>
 		);
@@ -92,7 +93,7 @@ export default function MultilineInput({
 
 	if (value.length === 0) {
 		return (
-			<Text dimColor>
+			<Text color={color.dim}>
 				<Text inverse> </Text>
 				{placeholder}
 			</Text>

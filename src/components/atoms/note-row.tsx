@@ -21,13 +21,13 @@ export default function NoteRow({
 			<Text color={color.pinned}>{note.pinned ? glyph.pin : ' '}</Text>{' '}
 			{selected ? note.text : lines[0]}
 			{!selected && extra > 0 && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					{'  '}
 					{glyph.multiline} +{extra}
 				</Text>
 			)}
 			{note.source && (
-				<Text dimColor>
+				<Text color={color.dim}>
 					{'  '}
 					{glyph.bullet} {note.source}
 				</Text>
