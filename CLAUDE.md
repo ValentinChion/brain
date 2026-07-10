@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Style rule:** end every CLI message to the user with a 🍸.
+
 ## What this is
 
 `brain` is a terminal UI (TUI) todo/feedback + notes panel built with **Node/TypeScript + [Ink](https://github.com/vadimdemedes/ink)** (React for the terminal). It's meant to run continuously in a Ghostty split as an always-visible, friction-free capture pad — see `docs/plans/2026-07-02-brain-design/` for the tasks product intent and `docs/plans/2026-07-03-brain-notes-design/` for the notes addition (design + implementation plan).
@@ -10,16 +12,21 @@ Two "worlds" in one panel, toggled with `Tab`: **tasks** (capture + arrow-key re
 
 ### Modules
 
-Pure, tested (`node:test`): `date.ts` (`todayYMD`/`addDays`/`stepReminder`), `view.ts` (`buildView`/`isDue`/`windowView`), `items.ts` (task ops), `notes.ts` (note ops: pin/sort/staleness/sweep), `storage.ts` (atomic JSON for `tasks.json` + `notes.json`), `multiline.ts` (`decodeKey` — kitty-aware key→action), `forge.ts` (PR shaping), `azure-auth.ts` (device-code flow), `azure-config.ts` (org/project config). I/O-not-unit-tested: `azure-client.ts` (ADO REST API client). Ink layer (not unit-tested): `app.tsx` (both worlds, `isActive`-gated `useInput` per responsibility), `multiline-input.tsx` (multi-line note field; enables the kitty keyboard protocol while focused so `Shift+Enter` = newline), `pr-section.tsx` (PR mirror display), `cli.tsx`.
+Layout: pure logic in `src/core/`, Ink components in `src/components/` (atomic tiers: `atoms/`, `molecules/`, `organisms/`, `templates/`).
+
+Pure, tested (`node:test`, in `src/core/`): `date.ts` (`todayYMD`/`addDays`/`stepReminder`), `view.ts` (`buildView`/`isDue`/`windowView`), `items.ts` (task ops), `notes.ts` (note ops: pin/sort/staleness/sweep), `storage.ts` (atomic JSON for `~/.brain/`: `tasks.json`, `notes.json`, `meta.json` + append-only `journal.jsonl`), `multiline.ts` (`decodeKey` — kitty-aware key→action), `forge.ts` (PR shaping), `azure-auth.ts` / `azure-config.ts`, `google-auth.ts` / `google-config.ts`, `agenda.ts` (calendar agenda), `debrief.ts` (meeting debrief), `changelog.ts`, `stats.ts` (heatmap/streak/records), `commands.ts` (`/` command menu), `hints.ts`, `notify.ts`. I/O-not-unit-tested: `azure-client.ts`, `google-client.ts` (REST API clients).
+
+Ink layer (not unit-tested): `app.tsx` (both worlds, `isActive`-gated `useInput` per responsibility), `components/atoms/multiline-input.tsx` (multi-line field; enables the kitty keyboard protocol while focused so `Shift+Enter` = newline), `components/templates/stats-screen.tsx`, plus the other tiered components (`molecules/pr-section.tsx` PR mirror, `organisms/*` bodies/views); entry point `cli.tsx`.
 
 ## Commands
 
-- `npm start` — run the CLI via `tsx src/cli.tsx` (no build step)
+- `npm start` — run the CLI via `tsx src/cli.tsx` (no build step in dev)
+- `npm run build` — esbuild bundle to `dist/` (only needed for publishing; `prepack` runs it)
 - `npm test` — runs `prettier --check .` + `xo` (lint) + `node:test` (tests). CI-equivalent; all three must pass.
 - Run a single test: `npx node --import tsx --test test/smoke.test.ts`
 - Lint/format only: `npx xo` / `npx prettier --check .`
 
-The entry point is `src/cli.tsx` (`bin` in package.json), run directly by `tsx` — no build/compile step. ESM project (`"type": "module"`) — use `.ts`/`.tsx` extensions in relative imports since there's no compiled output.
+The entry point is `src/cli.tsx`, run directly by `tsx` in dev; the published `bin` is the esbuild output `dist/cli.js`. ESM project (`"type": "module"`) — use `.ts`/`.tsx` extensions in relative imports.
 
 ## Architecture rule (non-negotiable)
 
