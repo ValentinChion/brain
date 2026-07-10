@@ -91,6 +91,14 @@ export function parseTokenResponse(
 	};
 }
 
+// Un refresh raté ne signifie « déconnecté » que si Google rejette l'auth
+// elle-même : 400 invalid_grant (token révoqué/expiré) ou 401 invalid_client.
+// Tout le reste (pas de réseau → status undefined, 429, 5xx) est transitoire :
+// effacer le token dans ces cas forçait une reconnexion à chaque aléa réseau.
+export function isRefreshRevoked(status: number | undefined): boolean {
+	return status === 400 || status === 401;
+}
+
 const SKEW_MS = 60_000; // rafraîchir 60 s avant l'expiration réelle (marge réseau)
 
 export function isExpired(token: GoogleToken, nowISO: string): boolean {

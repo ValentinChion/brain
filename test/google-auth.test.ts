@@ -8,6 +8,7 @@ import {
 	buildRefreshBody,
 	parseTokenResponse,
 	isExpired,
+	isRefreshRevoked,
 } from '../src/core/google-auth.ts';
 
 test('pkcePair : challenge = base64url(sha256(verifier))', () => {
@@ -84,4 +85,15 @@ test('isExpired : marge de 60 s', () => {
 	assert.equal(isExpired(token, '2026-07-06T10:00:00.000Z'), false);
 	assert.equal(isExpired(token, '2026-07-06T10:59:00.000Z'), true); // dans la marge
 	assert.equal(isExpired(token, '2026-07-06T11:30:00.000Z'), true); // dépassé
+});
+
+test('isRefreshRevoked : seul un rejet auth (400/401) invalide le refresh token', () => {
+	// révocation réelle → on peut effacer le token
+	assert.equal(isRefreshRevoked(400), true); // invalid_grant
+	assert.equal(isRefreshRevoked(401), true); // invalid_client
+	// transitoire → garder le token, ne jamais déconnecter
+	assert.equal(isRefreshRevoked(undefined), false); // erreur réseau (fetch rejeté)
+	assert.equal(isRefreshRevoked(429), false);
+	assert.equal(isRefreshRevoked(500), false);
+	assert.equal(isRefreshRevoked(503), false);
 });

@@ -13,6 +13,7 @@ import {
 	buildRefreshBody,
 	parseTokenResponse,
 	isExpired,
+	isRefreshRevoked,
 	type RawTokenResponse,
 } from './google-auth.ts';
 import {
@@ -91,13 +92,19 @@ async function startLoopback(state: string): Promise<{
 	});
 }
 
+class TokenHttpError extends Error {
+	constructor(readonly status: number) {
+		super(`jeton refusé (${status})`);
+	}
+}
+
 async function postForm(body: string): Promise<RawTokenResponse> {
 	const res = await fetch(TOKEN_ENDPOINT, {
 		method: 'POST',
 		headers: FORM,
 		body,
 	});
-	if (!res.ok) throw new Error(`jeton refusé (${res.status})`);
+	if (!res.ok) throw new TokenHttpError(res.status);
 	return res.json() as Promise<RawTokenResponse>;
 }
 
@@ -154,9 +161,16 @@ async function ensureAccessToken(): Promise<string> {
 				refreshToken: token.refreshToken,
 			}),
 		);
-	} catch {
-		clearToken(); // refresh révoqué/expiré → repartir propre
-		throw new Error('session expirée — reconnecte via /gauth');
+	} catch (error) {
+		// n'effacer le token que sur révocation réelle (400/401) — une erreur
+		// réseau ou un 5xx/429 au boot ne doit pas déconnecter (cf. isRefreshRevoked)
+		const status = error instanceof TokenHttpError ? error.status : undefined;
+		if (isRefreshRevoked(status)) {
+			clearToken();
+			throw new Error('session expirée — reconnecte via /gauth');
+		}
+
+		throw new Error('agenda indisponible — réseau ? (token conservé)');
 	}
 
 	const next = parseTokenResponse(json, nowISO(), token.refreshToken);
