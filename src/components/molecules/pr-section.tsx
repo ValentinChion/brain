@@ -6,14 +6,15 @@ import Panel from '../atoms/panel.tsx';
 
 export type AzState = 'off' | 'code' | 'connecting' | 'connected' | 'error';
 
-// ponytail: les libellés (« à reviewer », « CI rouge »…) ne sont plus affichés —
-// le compteur ouvert porte ▾ et l'inverse, un sous-entête ne dirait rien de neuf.
-// Quatre glyphes à apprendre. Remettre un sous-entête si l'usage montre que ça coince.
-const LOOK: Record<PrKind, {icon: string; tint: string}> = {
-	'review-requested': {icon: glyph.prReview, tint: color.ember},
-	'changes-requested': {icon: glyph.prChanges, tint: color.brick},
-	'ci-failed': {icon: glyph.prCiFail, tint: color.brick},
-	approved: {icon: glyph.prApproved, tint: color.gold},
+// Libellé court par genre : un mot vaut mieux qu'un glyphe cryptique (⇄/↺ ne
+// disaient pas « à reviewer »/« à corriger »). Trois « à + verbe » = des tâches ;
+// « CI » s'appuie sur sa teinte brick pour dire « rouge ». Reste sur une ligne
+// jusqu'à ~60 colonnes. La couleur porte le genre ; le mot le nomme.
+const LOOK: Record<PrKind, {label: string; tint: string}> = {
+	'review-requested': {label: 'à voir', tint: color.ember},
+	'changes-requested': {label: 'à corriger', tint: color.brick},
+	'ci-failed': {label: 'CI', tint: color.brick},
+	approved: {label: 'à merger', tint: color.gold},
 };
 
 // Miroir des PRs de la forge : lecture seule, disparaît quand la forge dit que
@@ -80,7 +81,7 @@ export default function PrSection({
 							bold={active && i === focusIdx}
 							inverse={active && i === focusIdx}
 						>
-							{LOOK[g.kind].icon} {g.items.length}
+							{g.items.length} {LOOK[g.kind].label}
 							{open && i === focusIdx ? ` ${glyph.open}` : ''}
 						</Text>
 					</Box>
@@ -101,12 +102,13 @@ export default function PrSection({
 				const age = ageDays(pr.createdAt, nowISO);
 				const sel = i === selected;
 				return (
-					// tronquée sauf sélection (dépliée, comptée dans prRows par app.tsx)
+					// tronquée sauf sélection (dépliée, comptée dans prRows par app.tsx).
+					// Pas de glyphe de genre : le groupe déplié est d'un seul genre,
+					// déjà nommé par le compteur ouvert au-dessus.
 					<Text key={pr.id} wrap={sel ? 'wrap' : 'truncate-end'}>
 						<Text color={color.amber} bold={sel}>
 							{sel ? glyph.caret : ' '}{' '}
 						</Text>
-						<Text color={LOOK[open.kind].tint}>{LOOK[open.kind].icon} </Text>
 						<Text color={color.fg}>{pr.title}</Text>
 						<Text color={color.dim}>
 							{' '}
