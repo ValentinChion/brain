@@ -48,6 +48,8 @@ export const glyph = {
 	moreUp: '▲',
 	moreDown: '▼',
 	open: '▾', // groupe PR déplié
+	clock: '◷', // bandeau agenda : réunion à venir / en cours
+	calm: '◌', // bandeau agenda : rien en vue (libre, terminé, déconnecté)
 	stepLeft: '◀',
 	stepRight: '▶',
 	prompt: '›',

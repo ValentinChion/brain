@@ -168,6 +168,18 @@ export default function App() {
 	const [azState, setAzState] = useState<AzState>(() =>
 		isAzureConnected() && loadAzureConfig() ? 'connected' : 'off',
 	);
+	// horloge : re-render toutes les 30 s pour que le compte à rebours et la mèche
+	// du bandeau agenda bougent même quand on ne tape pas (sinon ils figent).
+	const [nowTick, setNowTick] = useState(() => new Date().toISOString());
+	useEffect(() => {
+		const id = setInterval(() => {
+			setNowTick(new Date().toISOString());
+		}, 30_000);
+		return () => {
+			clearInterval(id);
+		};
+	}, []);
+
 	const [azCode, setAzCode] = useState<string | null>(null);
 	const [azError, setAzError] = useState<string | null>(null);
 	const [prs, setPrs] = useState<PrItem[]>([]);
@@ -1049,7 +1061,7 @@ export default function App() {
 					<AgendaStatus
 						state={connState}
 						meetings={meetings}
-						nowISO={nowISO()}
+						nowISO={nowTick}
 						error={connectError}
 					/>
 					<PrSection
