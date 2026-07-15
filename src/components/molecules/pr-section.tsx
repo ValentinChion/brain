@@ -15,6 +15,7 @@ const LOOK: Record<PrKind, {label: string; tint: string}> = {
 	'changes-requested': {label: 'à corriger', tint: color.brick},
 	'ci-failed': {label: 'CI', tint: color.brick},
 	approved: {label: 'à merger', tint: color.gold},
+	mine: {label: 'en cours', tint: color.dim}, // informatif : tes PRs en attente de review
 };
 
 // Miroir des PRs de la forge : lecture seule, disparaît quand la forge dit que

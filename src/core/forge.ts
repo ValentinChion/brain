@@ -5,7 +5,8 @@ export type PrKind =
 	| 'review-requested'
 	| 'ci-failed'
 	| 'changes-requested'
-	| 'approved';
+	| 'approved'
+	| 'mine'; // ma PR ouverte, en attente de review — informatif, pas actionnable
 
 export type PrItem = {
 	id: number;
@@ -28,12 +29,12 @@ export type RawPullRequest = {
 
 // votes Azure : 10 approuvé, 5 approuvé avec suggestions, 0 pas de vote,
 // -5 waiting for author, -10 rejeté.
-function myPrKind(pr: RawPullRequest, ciFailed: boolean): PrKind | null {
+function myPrKind(pr: RawPullRequest, ciFailed: boolean): PrKind {
 	if (ciFailed) return 'ci-failed';
 	const votes = (pr.reviewers ?? []).map(r => r.vote ?? 0);
 	if (votes.some(v => v < 0)) return 'changes-requested';
 	if (votes.some(v => v >= 5)) return 'approved';
-	return null; // rien d'actionnable → pas affichée
+	return 'mine'; // ouverte, en attente — affichée « en cours » (sauf draft, filtré avant)
 }
 
 function kindOf(
@@ -54,6 +55,7 @@ const ORDER: readonly PrKind[] = [
 	'changes-requested',
 	'ci-failed',
 	'approved',
+	'mine', // en dernier : informatif, ne doit pas passer devant les actionnables
 ];
 
 const rank = (k: PrKind): number => ORDER.indexOf(k);

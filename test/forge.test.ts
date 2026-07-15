@@ -82,14 +82,16 @@ test('ma PR, ≥1 approbation et aucun vote bloquant → approved', () => {
 	assert.equal(shapePullRequests(raw, ME)[0].kind, 'approved');
 });
 
-test('ma PR sans vote ni CI rouge → exclue (rien à faire)', () => {
+test('ma PR sans vote ni CI rouge → « en cours » (affichée, informative)', () => {
 	const raw = [
 		pr({
 			createdBy: {id: ME, displayName: 'Moi'},
 			reviewers: [{id: 'b', vote: 0}],
 		}),
 	];
-	assert.equal(shapePullRequests(raw, ME).length, 0);
+	const out = shapePullRequests(raw, ME);
+	assert.equal(out.length, 1);
+	assert.equal(out[0].kind, 'mine');
 });
 
 test('tri : reviews avant mes PRs, puis plus anciennes en premier', () => {
@@ -178,5 +180,33 @@ test('shapePullRequests : les 4 genres sortent dans l’ordre du panneau', () =>
 	assert.deepEqual(
 		shapePullRequests(raw, ME, [4]).map(p => p.kind),
 		['review-requested', 'changes-requested', 'ci-failed', 'approved'],
+	);
+});
+
+test('ma PR ouverte sans vote → « mine » (en cours), au lieu de null', () => {
+	const raw = [pr({createdBy: {id: ME}, reviewers: []})];
+	const out = shapePullRequests(raw, ME);
+	assert.equal(out.length, 1);
+	assert.equal(out[0].kind, 'mine');
+});
+
+test('ma PR draft reste masquée, même « en cours »', () => {
+	const raw = [pr({isDraft: true, createdBy: {id: ME}, reviewers: []})];
+	assert.deepEqual(shapePullRequests(raw, ME), []);
+});
+
+test('« mine » se trie en dernier, après approved', () => {
+	const raw = [
+		pr({pullRequestId: 1, createdBy: {id: ME}, reviewers: []}), // mine
+		pr({pullRequestId: 2, reviewers: [{id: ME, vote: 0}]}), // review-requested
+		pr({
+			pullRequestId: 3,
+			createdBy: {id: ME},
+			reviewers: [{id: 'b', vote: 10}],
+		}), // approved
+	];
+	assert.deepEqual(
+		shapePullRequests(raw, ME).map(p => p.kind),
+		['review-requested', 'approved', 'mine'],
 	);
 });
