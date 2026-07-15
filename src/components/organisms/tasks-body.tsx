@@ -23,26 +23,30 @@ export default function TasksBody({
 	active: boolean;
 	selectedId: string | undefined;
 }) {
+	// la fenêtre montre moins que tout → on scrolle. Dans ce cas les lignes
+	// « N de plus » du haut et du bas sont toujours réservées (vides si rien à
+	// dire) pour que la liste ne saute pas d'une ligne au passage d'un bord.
+	const scrolling = shown.length < visible.length;
 	return (
 		<Box flexDirection="column">
-			{/* entête d'alerte : rien à dire les jours sans échéance → pas de ligne.
-			    Remplace l'ancienne bannière pleine largeur ; les tâches dues sont
-			    déjà en `resurface` dans Row. */}
-			{dueCount > 0 && start === 0 && (
-				<Text color={color.resurface}>
-					▦ {dueCount} ressort{dueCount > 1 ? 'ent' : ''}
-				</Text>
-			)}
 			{visible.length === 0 && (
 				<Text color={color.faint}>
 					Rien pour l'instant. Écris ci-dessous pour capturer.
 				</Text>
 			)}
-			{start > 0 && (
+			{/* ligne du haut : ▲ si scrollé, sinon entête d'échéance (les tâches
+			    dues sont déjà en `resurface` dans Row), sinon vide pendant le scroll */}
+			{start > 0 ? (
 				<Text color={color.dim}>
 					{glyph.moreUp} {start} de plus
 				</Text>
-			)}
+			) : dueCount > 0 ? (
+				<Text color={color.resurface}>
+					▦ {dueCount} ressort{dueCount > 1 ? 'ent' : ''}
+				</Text>
+			) : scrolling ? (
+				<Text> </Text>
+			) : null}
 			{shown.map(it => (
 				<Row
 					key={it.id}
@@ -51,11 +55,13 @@ export default function TasksBody({
 					selected={active && selectedId === it.id}
 				/>
 			))}
-			{end < visible.length && (
+			{end < visible.length ? (
 				<Text color={color.dim}>
 					{glyph.moreDown} {visible.length - end} de plus
 				</Text>
-			)}
+			) : scrolling ? (
+				<Text> </Text>
+			) : null}
 		</Box>
 	);
 }
