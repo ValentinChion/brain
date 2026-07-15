@@ -11,6 +11,20 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
 	{
+		version: '0.3.0',
+		date: '2026-07-15',
+		entries: [
+			'Refonte visuelle « braise » : une seule palette chaude (rouge sombre → or) sur toute l’app, panneaux cadrés pour les tâches, les notes et les PRs',
+			'Écran /stats : série, flux sur 7 jours, activité et records (commande /stats)',
+			'Miroir PRs repensé : compteurs en mots (à voir / à corriger / CI / à merger), un genre « en cours » pour tes PRs en attente de review, Entrée déplie un groupe pour le triage',
+			'Bandeau agenda repensé : prochaine réunion avec compte à rebours et mèche qui se consume ; états « en cours », « journée dégagée », « terminé »',
+			'Menu de commandes : tape « / » en début de saisie pour lister et lancer les commandes (navigable aux flèches)',
+			'Maj+↑/↓ : saut direct entre sections (PRs ↔ tâches ↔ saisie)',
+			'Azure DevOps : /azure accepte les noms de projet avec espaces et se connecte sur le tenant de l’organisation (invités B2B)',
+			'Corrections : un aléa réseau ne déconnecte plus l’agenda ; saisie fiable sous Ghostty (protocole kitty)',
+		],
+	},
+	{
 		version: '0.2.0',
 		date: '2026-07-08',
 		entries: [
