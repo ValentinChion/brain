@@ -636,6 +636,22 @@ export default function App() {
 			}
 
 			if (mode === 'nav') {
+				// Maj+↑/↓ : saut de section, quelle que soit la ligne — ↑ vers le
+				// panneau PR (s'il existe), ↓ vers la saisie.
+				if (key.shift && (key.upArrow || key.downArrow)) {
+					if (key.upArrow) {
+						if (groups.length > 0 && azState === 'connected') {
+							setPrFocus(groups[0].kind);
+							setPrExpanded(false);
+							setMode('prnav');
+						}
+					} else {
+						setMode('input');
+					}
+
+					return;
+				}
+
 				if (key.downArrow) {
 					if (clampedSel >= visible.length - 1) setMode('input');
 					else setSelected(clampedSel + 1);
@@ -688,6 +704,22 @@ export default function App() {
 				return;
 			}
 
+			// Maj+↓ : saut de section vers les tâches (ou la saisie s'il n'y en a
+			// pas). Maj+↑ : le panneau PR est déjà la section du haut → rien.
+			if (key.shift && (key.upArrow || key.downArrow)) {
+				if (key.downArrow) {
+					setPrExpanded(false);
+					if (visible.length > 0) {
+						setSelected(0);
+						setMode('nav');
+					} else {
+						setMode('input');
+					}
+				}
+
+				return;
+			}
+
 			if (key.escape) {
 				if (prExpandedNow) setPrExpanded(false);
 				else setMode('input');
@@ -723,6 +755,12 @@ export default function App() {
 	// --- Monde NOTES : navigation (p épingler, e éditer, d suppr) ---
 	useInput(
 		(input, key) => {
+			// Maj+↓ : saut vers la saisie. Maj+↑ : notes est la section du haut → rien.
+			if (key.shift && (key.upArrow || key.downArrow)) {
+				if (key.downArrow) setMode('input');
+				return;
+			}
+
 			if (key.downArrow) {
 				if (noteSel >= noteList.length - 1) setMode('input');
 				else setNoteSelected(noteSel + 1);

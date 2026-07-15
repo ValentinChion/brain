@@ -47,6 +47,14 @@ export default function MultilineInput({
 
 	useInput(
 		(input, key) => {
+			// Maj+↑/↓ : saut de section (le parent route via onExit*), même en
+			// plein milieu d'un texte multi-lignes — on ne bouge pas le curseur.
+			if (key.shift && (key.upArrow || key.downArrow)) {
+				if (key.upArrow) onExitUp?.();
+				else onExitDown?.();
+				return;
+			}
+
 			const action = decodeKey(input, key);
 			if (action.type === 'submit') {
 				onSubmit(value);
