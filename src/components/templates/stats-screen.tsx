@@ -41,7 +41,7 @@ function Gradient({text}: {text: string}) {
 // cellule de heatmap : futur → blanc, jour vide → point estompé, sinon palier braise
 function Cell({cell}: {cell: HeatCell | null}) {
 	if (cell === null) return <Text> </Text>;
-	if (cell.level === 0) return <Text color={color.chrome}>· </Text>;
+	if (cell.level === 0) return <Text color={color.track}>· </Text>;
 	return <Text color={statsPalette[cell.level - 1]}>■ </Text>;
 }
 
@@ -77,7 +77,7 @@ function Gauge({filled}: {filled: number}) {
 					</Text>
 				))}
 			</Text>
-			<Text color={color.chrome}>{'░'.repeat(GAUGE_WIDTH - filled)}</Text>
+			<Text color={color.track}>{'░'.repeat(GAUGE_WIDTH - filled)}</Text>
 		</>
 	);
 }

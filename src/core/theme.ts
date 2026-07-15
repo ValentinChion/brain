@@ -21,7 +21,8 @@ export const color = {
 	dim: '#8a7d70', // secondaire : « · 2j », sources, agenda, rappels
 	faint: '#6f5d4c', // tertiaire : hints, listes vides
 	rule: '#4a3524', // filet chaud sous le masthead
-	chrome: '#3a2c20', // bordures de tous les panneaux
+	chrome: '#6f5d4c', // bordures de tous les panneaux (visible sur fond noir)
+	track: '#3a2c20', // fond « absence de données » : cellule vide, jauge non remplie
 	world: '#c9a15a', // libellé de monde sous le mot-marque
 
 	// rampe braise, nommée
