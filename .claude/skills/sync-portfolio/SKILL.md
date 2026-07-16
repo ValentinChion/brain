@@ -53,6 +53,11 @@ Repo portfolio : `~/src/theodo-try-projects/portfolio` (React 19 + Vite + Tailwi
    - `pnpm dev` puis captures navigateur en **EN et FR** ; confirmer les beats de la démo (mèche agenda qui bouge, dépli PR, entête ▦, épingle gold). Le pilotage navigateur passe par le MCP Playwright (`browser_navigate`/`browser_take_screenshot`) — l'extension Chrome peut être absente. La bascule de langue est un `<button>` de nom accessible `en`/`fr`.
    - Commiter côté portfolio.
 
+8. **Déployer en prod.** Le portfolio est un **Cloudflare Pages connecté au repo GitHub `tools-portfolio`** (`origin`) : aucune config de déploiement dans le repo (pas de `wrangler.toml`, pas de CI) — Cloudflare surveille la branche `main`, et **un push sur `main` déclenche le build (`pnpm build` → `dist/`) et met la prod à jour tout seul.** Donc, une fois la vérif de l'étape 7 **au vert** :
+   - **Demander confirmation à l'utilisateur** — pousser publie l'historique local ET déploie en production ; ne jamais pousser une vérif rouge ni sans accord.
+   - `git push origin main`.
+   - Suivre le build sur le dashboard Cloudflare Pages ; la prod se rafraîchit à la fin du build.
+
 ## Pièges
 
 - **Ne pas recolorer le chrome du site.** Ember `#ea580c` et corail `#d9635d` sont voisins : la tentation d'« unifier » casse l'invariant. La démo est braise ; le site reste corail.
@@ -60,3 +65,4 @@ Repo portfolio : `~/src/theodo-try-projects/portfolio` (React 19 + Vite + Tailwi
 - **Nettoyer les captures.** Playwright dépose les PNG dans le cwd (souvent le repo brain, pas le portfolio) et un dossier `.playwright-mcp/`. Les supprimer avant de committer, et couper le serveur `vite` (`pkill -f vite`).
 - **Parité EN/FR ou le rendu casse.** `t = T[lang]` : une clé présente d'un seul côté passe `tsc` mais rend `undefined` dans l'autre langue. Toujours éditer les deux.
 - **Décisions ≠ défauts silencieux.** Si l'utilisateur s'absente, retenir le défaut recommandé MAIS le signaler explicitement dans le spec (« à confirmer »), ne pas le présenter comme acté.
+- **`push main` = mise en prod.** Il n'y a pas d'étape de staging : le push déploie directement via Cloudflare Pages. Toujours après une vérif verte et un accord explicite ; jamais en réflexe de fin de tâche.
